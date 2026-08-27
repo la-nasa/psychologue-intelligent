@@ -42,13 +42,16 @@ def _default_engine_factory(model_path: Path, context_tokens: int) -> ChatEngine
     # file is type-checked -- expected, not a bug.
     from llama_cpp import Llama  # type: ignore[import-not-found]
 
-    # llama-cpp-python's own default is a conservative guess (roughly half the
-    # visible CPUs) that badly under-uses a container with a generous CPU
-    # limit -- measured live on the Railway deployment at ~40s/reply with the
-    # default before this fix. CPU-bound generation scales close to linearly
-    # with threads up to the physical core count, so use everything visible.
-    threads = os.cpu_count() or 4
-    return Llama(model_path=str(model_path), n_ctx=context_tokens, n_threads=threads, n_threads_batch=threads, verbose=False)
+    # Deliberately NOT os.cpu_count(): inside a container that reports the
+    # *host's* full CPU count rather than its actual cgroup share (common,
+    # and true of this deployment), that wildly oversubscribes real cores --
+    # measured live on the Railway deployment going from ~40s/reply to over
+    # two minutes when threads were sized that way. A small fixed default,
+    # overridable per-deployment via PI_LLM_THREADS once the real allocation
+    # is known, is safer than trusting a number the OS can't be trusted to
+    # report accurately in a container.
+    threads = int(os.environ.get("PI_LLM_THREADS", "4"))
+    return Llama(model_path=str(model_path), n_ctx=context_tokens, n_threads=threads, verbose=False)
 
     return Llama(model_path=str(model_path), n_ctx=context_tokens, verbose=False)
 
