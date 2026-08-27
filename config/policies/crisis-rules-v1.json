@@ -1,0 +1,16 @@
+{
+  "version": "rules-dev-1",
+  "high_risk_terms": [
+    "plan suicidaire",
+    "me tuer",
+    "suicide",
+    "acheter des medicaments",
+    "en finir"
+  ],
+  "concern_terms": [
+    "envie de mourir",
+    "plus envie de vivre",
+    "desespere",
+    "perdu"
+  ]
+}

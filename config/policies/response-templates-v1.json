@@ -1,0 +1,13 @@
+{
+  "version": "response-templates-dev-1",
+  "environment": "development",
+  "approved_by": null,
+  "approved_at": null,
+  "red": "Merci d'avoir partage cela. Ce que vous decrivez est important et va etre examine rapidement par une professionnelle ou un professionnel. Cet outil n'est pas un service d'urgence : si vous etes en danger immediat, contactez les services d'urgence locaux ou une personne de confiance des maintenant.",
+  "orange": "Merci pour votre message. Ce moment semble difficile, et une professionnelle ou un professionnel va prendre connaissance de votre echange. Vous pouvez aussi contacter votre clinicien referent si vous en ressentez le besoin.",
+  "green_acknowledgments": [
+    "Merci d'avoir partage cela. Je note ce que vous avez ecrit.",
+    "J'entends que ce moment compte pour vous, merci de le partager.",
+    "Merci pour ce message. Prenez le temps dont vous avez besoin."
+  ]
+}

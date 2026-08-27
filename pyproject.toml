@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psychologue-intelligent"
+version = "0.1.0"
+description = "Fondation sécurisée du projet Psychologue Intelligent"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+dev = ["ruff==0.16.4", "bandit==1.9.4", "pip-audit==2.10.1", "mypy==2.3.1", "coverage==7.15.4", "PyYAML==6.0.3"]
+# Training-time only (see ml/train_emotion_classifier.py): the running app
+# never imports scikit-learn, it only reads the exported JSON weights
+# (backend/app/emotion.py reimplements inference in pure Python).
+ml = ["scikit-learn==1.9.0"]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 200
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "PIE", "RUF"]
+# E501 (line length) and E701/E702 (compound statements) conflict with this codebase's
+# established terse single-line style (see docs/reports); not a defect, so not enforced.
+ignore = ["E501", "E701", "E702"]
+
+[tool.mypy]
+python_version = "3.12"
+# warn_return_any is intentionally off: sqlite3.Row/json.loads are untyped (Any) in the
+# stdlib stubs, and this project deliberately avoids adding an ORM/schema-validation
+# dependency (see ADR-003). Enabling it would flag every DB/JSON read, not real bugs.
+warn_unused_ignores = true
+check_untyped_defs = true
+no_implicit_optional = true
+
+[tool.coverage.run]
+source = ["backend/app"]
+omit = ["backend/app/__main__.py"]
+
+[tool.coverage.report]
+fail_under = 85
+skip_covered = false
+

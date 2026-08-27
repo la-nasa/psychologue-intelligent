@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Repère Clinicien</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <div id="login" class="auth-shell">
+    <form id="login-form">
+      <p class="eyebrow">REPÈRE — ESPACE CLINICIEN</p>
+      <h1>Connexion sécurisée</h1>
+      <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
+      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      <label>Code d'authentification (TOTP)<input name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required></label>
+      <button>Se connecter</button>
+      <p id="login-message" class="message" role="status"></p>
+    </form>
+  </div>
+
+  <div id="dashboard" class="app-shell hidden">
+    <nav aria-label="Navigation principale">
+      <p class="eyebrow">REPÈRE CLINICIEN</p>
+      <button data-view="patients" class="nav-item" aria-current="page">Patients</button>
+      <button data-view="alerts" class="nav-item">Alertes</button>
+      <button data-view="learning" class="nav-item">Apprentissage</button>
+      <button id="logout" class="nav-item text">Se déconnecter</button>
+    </nav>
+
+    <main>
+      <section id="view-patients" class="view">
+        <h2>Patients suivis</h2>
+        <p class="quiet">Seuls les patients avec une relation active vous sont présentés.</p>
+        <table class="data-table" id="patients-table">
+          <thead><tr><th scope="col">Patient</th><th scope="col">Dernier PHQ-9</th><th scope="col">Alertes ouvertes</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="patients-empty">Aucun patient actif ne vous est actuellement rattaché.</p>
+      </section>
+
+      <section id="view-timeline" class="view hidden">
+        <button class="text" data-view="patients">&larr; Retour aux patients</button>
+        <h2 id="timeline-name">Suivi patient</h2>
+        <h3>Historique PHQ-9</h3>
+        <table class="data-table" id="phq9-table">
+          <thead><tr><th scope="col">Date</th><th scope="col">Score</th><th scope="col">Item 9</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="phq9-empty">Aucune évaluation PHQ-9 enregistrée.</p>
+        <h3>Alertes</h3>
+        <div id="timeline-alerts"></div>
+      </section>
+
+      <section id="view-alerts" class="view hidden">
+        <h2>Alertes</h2>
+        <div class="filters">
+          <label>Niveau<select id="filter-level"><option value="">Tous</option><option value="RED">Rouge</option><option value="ORANGE">Orange</option><option value="GREEN">Vert</option></select></label>
+          <label>Statut<select id="filter-status"><option value="">Tous</option><option value="OPEN">Ouverte</option><option value="ACKNOWLEDGED">Prise en compte</option><option value="IN_REVIEW">En revue</option><option value="ESCALATED">Escaladée</option><option value="RESOLVED">Résolue</option><option value="CLOSED">Clôturée</option></select></label>
+        </div>
+        <div id="alerts-list"></div>
+        <p class="empty hidden" id="alerts-empty">Aucune alerte ne correspond à ces filtres.</p>
+      </section>
+
+      <section id="view-learning" class="view hidden">
+        <h2>Apprentissage continu</h2>
+        <p class="quiet">Ce contenu est anonymisé automatiquement avant de vous être présenté (filtre de confidentialité). Vérifiez qu'aucune information identifiante ne subsiste avant d'approuver.</p>
+        <h3>Messages en attente de revue</h3>
+        <div id="feedback-list"></div>
+        <p class="empty hidden" id="feedback-empty">Aucun message en attente de revue.</p>
+        <h3>Modèles en attente d'approbation</h3>
+        <p class="quiet">Deux clinicien·ne·s distinct·e·s doivent approuver avant qu'un modèle puisse être déployé.</p>
+        <div id="models-review-list"></div>
+        <p class="empty hidden" id="models-review-empty">Aucun modèle en attente de votre décision.</p>
+      </section>
+
+      <p id="app-message" class="message" role="status"></p>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body></html>

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+work/*.db
+work/*.db-*
+.env
+.venv/
+.venv2/
+*.egg-info/
+.coverage
+htmlcov/
+ml/data/
+

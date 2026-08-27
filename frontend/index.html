@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Repère — espace personnel</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <main class="shell">
+    <aside><p class="eyebrow">REPÈRE</p><h1>Un espace pour prendre le temps.</h1><p class="quiet">Cet outil accompagne votre suivi. Il ne remplace pas un professionnel ni les urgences.</p><p class="help">En cas de danger immédiat, contactez les services d’urgence locaux ou une personne de confiance.</p></aside>
+    <section class="panel" aria-live="polite">
+      <div id="account" class="view"><p class="eyebrow">BIENVENUE</p><h2>Créer votre espace</h2><form id="register"><label>E-mail<input name="email" type="email" autocomplete="email" required></label><label>Mot de passe <small>12 caractères minimum</small><input name="password" type="password" autocomplete="new-password" minlength="12" required></label><button>Créer un compte</button></form><p>Déjà inscrit ? <button class="text" data-view="login">Se connecter</button></p></div>
+      <div id="login" class="view hidden"><p class="eyebrow">CONNEXION</p><h2>Retrouver votre espace</h2><form id="signin"><label>E-mail<input name="email" type="email" required></label><label>Mot de passe<input name="password" type="password" required></label><button>Se connecter</button></form></div>
+      <div id="onboarding" class="view hidden"><p class="eyebrow">À VOTRE RYTHME</p><h2>Avant de commencer</h2><form id="profile"><label>Comment souhaitez-vous être appelé·e ?<input name="display_name" maxlength="100" required></label><label class="check"><input type="checkbox" name="care" required><span>J’ai lu et j’accepte la version 1 du consentement de soin.</span></label><label class="check"><input type="checkbox" name="learning"><span>J’accepte, de façon facultative, l’utilisation anonymisée pour l’amélioration future.</span></label><button>Continuer</button></form></div>
+      <div id="home" class="view hidden"><p class="eyebrow">VOTRE ESPACE</p><h2 id="hello">Bonjour.</h2><div class="actions"><button data-view="chat">Ouvrir la conversation</button><button data-view="privacy" class="secondary">Confidentialité</button><button id="logout" class="text">Se déconnecter</button></div></div>
+      <div id="chat" class="view hidden">
+        <p class="eyebrow">CONVERSATION</p>
+        <h2>Votre conversation</h2>
+        <div class="notice"><strong>Ceci n'est pas une intelligence artificielle conversationnelle.</strong><p>Les réponses sont des messages de soutien préétablis, pas un dialogue génère par IA ni un avis clinique. Une professionnelle ou un professionnel est prévenu si votre message le justifie.</p></div>
+        <div id="messages" class="messages" aria-live="polite"></div>
+        <form id="send-message"><label class="sr-only" for="message-text">Votre message</label><textarea id="message-text" name="text" maxlength="8000" required placeholder="Écrivez ici…"></textarea><button>Envoyer</button></form>
+        <p><button class="text" data-view="home">Retour</button></p>
+      </div>
+      <div id="privacy" class="view hidden"><p class="eyebrow">VOS DONNÉES</p><h2>Confidentialité</h2><p>Vous pouvez demander la suppression de votre compte. La demande sera traitée selon la politique de rétention validée ; elle ne supprime pas immédiatement les traces d’audit légalement requises.</p><button id="delete" class="danger">Demander la suppression</button><p><button class="text" data-view="home">Retour</button></p></div>
+      <p id="message" class="message" role="status"></p>
+    </section>
+  </main><script src="app.js"></script>
+</body></html>

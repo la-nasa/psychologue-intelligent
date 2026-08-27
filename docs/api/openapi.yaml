@@ -1,0 +1,688 @@
+openapi: 3.0.3
+info:
+  title: Psychologue Intelligent API
+  version: "0.1.0-dev"
+  description: |
+    API du pilote « Psychologue Intelligent ». Ce document décrit les 34
+    opérations (32 routes API + 2 vérifications de santé) réellement
+    implémentées dans `backend/app/http.py` à la date de génération (Phase 14,
+    vérifié en comptant chaque `if method == ...` du routeur un par un) — il
+    n'y a aucune route documentée ici qui n'existe pas dans le code, et
+    inversement. Régénérer/relire ce fichier après tout changement de route
+    est une exigence du projet (`docs/api/conventions.md`), pas une
+    formalité.
+
+    Authentification : jeton opaque `Bearer` (pas un JWT), émis par
+    `POST /auth/sessions`, révocable via `POST /auth/logout`. Aucune
+    information de session n'est jamais transmise par cookie (voir
+    `docs/security/threat-model.md`, TH-12).
+
+    Autorisation : contrôlée côté serveur à chaque appel, jamais déduite du
+    client. Les routes sont groupées par rôle minimal requis dans les tags
+    (`Public`, `Patient`, `Clinicien`, `Administrateur`) ; certaines routes
+    clinicien/admin exigent en plus une relation active ou une double
+    approbation, documentée dans la description de la route.
+
+    Toutes les erreurs suivent RFC 9457 (`application/problem+json`) : voir le
+    schéma `Problem`. Ce projet est un pilote pré-clinique : voir le
+    disclaimer en tête de `README.md` avant toute utilisation réelle.
+  contact:
+    name: Dépôt du projet
+    url: https://example.invalid/psychologue-intelligent
+servers:
+  - url: http://127.0.0.1:8000
+    description: Développement local (scripts/dev_server.py ou python -m backend.app)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Public
+    description: Aucune authentification requise.
+  - name: Patient
+    description: Nécessite une session patiente valide.
+  - name: Clinicien
+    description: Nécessite une session clinicienne valide (MFA obligatoire à la connexion).
+  - name: Administrateur
+    description: Nécessite une session administrateur valide (MFA obligatoire à la connexion).
+
+paths:
+  /health/live:
+    get:
+      tags: [Public]
+      summary: Vivacité du processus
+      description: Ne dépend jamais de la base de données ; répond tant que le processus tourne.
+      security: []
+      responses:
+        "200": { description: Processus vivant, content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [live] } } } } } }
+
+  /health/ready:
+    get:
+      tags: [Public]
+      summary: Disponibilité (base de données incluse)
+      security: []
+      responses:
+        "200": { description: Prêt à servir, content: { application/json: { schema: { type: object, properties: { status: { type: string, enum: [ready] } } } } } }
+        "500": { $ref: "#/components/responses/InternalError" }
+
+  /api/v1/auth/register:
+    post:
+      tags: [Public]
+      summary: Inscription patiente (auto-service)
+      description: |
+        Seul le rôle PATIENT peut s'auto-inscrire. Les comptes CLINICIAN/ADMIN
+        sont provisionnés hors bande (`scripts/provision_user.py`), jamais par
+        cette route. Limité à 10 tentatives/heure par IP.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201": { description: Compte créé }
+        "401": { $ref: "#/components/responses/Rejected" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /api/v1/auth/sessions:
+    post:
+      tags: [Public]
+      summary: Connexion
+      description: |
+        Pour les rôles CLINICIAN et ADMIN, `totp_code` est obligatoire (MFA).
+        Limité à 5 tentatives/15 min par (IP, e-mail). Une erreur d'identifiants
+        est identique, que le compte existe ou non (pas d'énumération de comptes).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "201":
+          description: Session créée
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/SessionResponse" }
+        "401": { $ref: "#/components/responses/Rejected" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+
+  /api/v1/auth/logout:
+    post:
+      tags: [Patient, Clinicien, Administrateur]
+      summary: Révocation de la session courante
+      responses:
+        "204": { description: Session révoquée }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/me:
+    get:
+      tags: [Patient, Clinicien, Administrateur]
+      summary: Identité de l'utilisateur courant
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/profile:
+    post:
+      tags: [Patient]
+      summary: Mise à jour du profil patient
+      description: Seul `display_name` est pris en compte ; tout autre champ (ex. `role`) est ignoré.
+      requestBody:
+        content: { application/json: { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } } }
+      responses:
+        "204": { description: Profil mis à jour }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/consents:
+    post:
+      tags: [Patient]
+      summary: Octroi d'un consentement (CARE ou LEARNING)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ConsentRequest" } } }
+      responses:
+        "204": { description: Consentement enregistré }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/consents/revoke:
+    post:
+      tags: [Patient]
+      summary: Révocation d'un consentement actif
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ConsentRevokeRequest" } } }
+      responses:
+        "204": { description: Consentement révoqué }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/privacy/deletion-requests:
+    post:
+      tags: [Patient]
+      summary: Demande de suppression de compte
+      description: Traitée selon la politique de rétention ; ne supprime pas immédiatement les traces d'audit légalement requises.
+      responses:
+        "202": { description: Demande enregistrée }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/assessments/phq9:
+    post:
+      tags: [Patient]
+      summary: Soumission d'une évaluation PHQ-9
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Phq9SubmitRequest" } } }
+      responses:
+        "201": { description: Score calculé côté serveur, content: { application/json: { schema: { $ref: "#/components/schemas/Phq9Result" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+    get:
+      tags: [Patient]
+      summary: Historique PHQ-9 du patient courant
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Phq9HistoryItem" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/conversations:
+    post:
+      tags: [Patient]
+      summary: Démarre (ou récupère) la conversation active du patient
+      description: Idempotent — exige un consentement CARE actif. Une seule conversation active à la fois par patient.
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Conversation" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/conversations/{id}/messages:
+    post:
+      tags: [Patient]
+      summary: Envoie un message et déclenche le pipeline de crise
+      description: |
+        Le contenu déclenche `crisis.CrisisDetector` (règles + modèle de risque,
+        jamais le LLM/répondeur seul). Pour ORANGE/RED, la réponse vient d'un
+        gabarit versionné fixe, jamais du répondeur. Limité à 30 messages/minute
+        par patient.
+      parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/MessageSendRequest" } } }
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/MessageSendResponse" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+        "429": { $ref: "#/components/responses/TooManyRequests" }
+    get:
+      tags: [Patient]
+      summary: Historique des messages d'une conversation
+      parameters: [{ $ref: "#/components/parameters/ConversationId" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Message" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/relationships:
+    post:
+      tags: [Administrateur]
+      summary: Crée (ou retrouve) une relation active patient-clinicien
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RelationshipCreateRequest" } } }
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+    get:
+      tags: [Administrateur]
+      summary: Liste les relations patient-clinicien
+      parameters:
+        - name: status
+          in: query
+          schema: { type: string, enum: [ACTIVE, ENDED] }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Relationship" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/relationships/{id}/end:
+    post:
+      tags: [Administrateur]
+      summary: Termine une relation active
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "204": { description: Relation terminée }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/users:
+    get:
+      tags: [Administrateur]
+      summary: Liste les utilisateurs
+      description: Ne renvoie jamais `password_hash` ni le secret TOTP brut — seulement un booléen `mfa_enabled`.
+      parameters:
+        - name: role
+          in: query
+          schema: { type: string, enum: [PATIENT, CLINICIAN, ADMIN] }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/User" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/patients:
+    get:
+      tags: [Clinicien]
+      summary: Liste les patients avec une relation active
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/PatientSummary" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/patients/{id}/timeline:
+    get:
+      tags: [Clinicien]
+      summary: Timeline complète d'un patient (PHQ-9, alertes, actions)
+      description: 401 si aucune relation active entre ce clinicien et ce patient (BOLA refusé par construction, pas seulement par convention).
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Timeline" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/alerts:
+    get:
+      tags: [Clinicien]
+      summary: Liste les alertes des patients du clinicien, filtrable
+      parameters:
+        - name: level
+          in: query
+          schema: { type: string, enum: [GREEN, ORANGE, RED] }
+        - name: status
+          in: query
+          schema: { type: string, enum: [OPEN, ACKNOWLEDGED, IN_REVIEW, ESCALATED, RESOLVED, CLOSED, CANCELLED] }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Alert" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/alerts/{id}/actions:
+    post:
+      tags: [Clinicien]
+      summary: Transition d'une alerte (machine à états)
+      description: "Transitions valides : OPEN→{ACKNOWLEDGED,ESCALATED,CANCELLED} ; ACKNOWLEDGED→{IN_REVIEW,ESCALATED,RESOLVED} ; IN_REVIEW→{ESCALATED,RESOLVED} ; ESCALATED→RESOLVED ; RESOLVED→CLOSED."
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/AlertActionRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string }, status: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/learning/sample:
+    post:
+      tags: [Administrateur]
+      summary: Échantillonne les nouveaux messages de patients consentants pour revue
+      description: N'échantillonne que les messages de patients avec un consentement LEARNING actif au moment de l'appel ; jamais deux fois le même message.
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { type: object, properties: { created: { type: integer } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/learning/feedback:
+    get:
+      tags: [Clinicien]
+      summary: File de revue des messages anonymisés en attente
+      description: Accessible à tout clinicien, pas seulement au clinicien traitant du patient — ne contient aucune identité patient.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/FeedbackItem" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/learning/feedback/{id}/review:
+    post:
+      tags: [Clinicien]
+      summary: Approuve ou rejette un élément de revue
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/FeedbackReviewRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string }, review_status: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/learning/datasets:
+    post:
+      tags: [Administrateur]
+      summary: Finalise un nouveau dataset à partir des éléments approuvés non encore inclus
+      description: Un dataset est immuable une fois créé (traçabilité/reproductibilité).
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Dataset" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+    get:
+      tags: [Administrateur]
+      summary: Liste les datasets
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/Dataset" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/learning/models:
+    post:
+      tags: [Administrateur]
+      summary: Enregistre une nouvelle version de modèle (statut initial PENDING_REVIEW)
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ModelRegisterRequest" } } }
+      responses:
+        "201": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ModelVersion" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+    get:
+      tags: [Administrateur]
+      summary: Liste les versions de modèle avec leur nombre d'approbations
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/ModelVersion" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/learning/models:
+    get:
+      tags: [Clinicien]
+      summary: Liste les versions de modèle (pour pouvoir voter)
+      description: Ne contient aucune donnée patient ; accessible à tout clinicien.
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/ModelVersion" } } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/clinician/learning/models/{id}/decisions:
+    post:
+      tags: [Clinicien]
+      summary: Approuve ou rejette une version de modèle
+      description: |
+        Exige 2 approbations de clinicien·ne·s **distinct·e·s** (contrainte
+        d'unicité en base) avant que le statut ne passe à APPROVED. Un seul
+        rejet fait immédiatement passer le statut à REJECTED.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ModelDecisionRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string }, status: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/learning/models/{id}/deploy:
+    post:
+      tags: [Administrateur]
+      summary: Marque une version de modèle APPROVED comme DEPLOYED
+      description: Ne déclenche aucun bascule de trafic réelle (pas d'infrastructure de déploiement) — c'est un changement d'état du registre, documenté comme tel.
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string }, status: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+  /api/v1/admin/learning/models/{id}/rollback:
+    post:
+      tags: [Administrateur]
+      summary: Marque une version de modèle DEPLOYED comme ROLLED_BACK
+      parameters: [{ name: id, in: path, required: true, schema: { type: string } }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { id: { type: string }, status: { type: string } } } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Jeton opaque (pas un JWT), 256 bits, haché en base (jamais stocké en clair).
+
+  parameters:
+    ConversationId:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Rejected:
+      description: |
+        Requête rejetée. Utilisé uniformément pour authentification manquante,
+        jeton invalide/révoqué, rôle insuffisant, relation absente, et erreurs
+        de validation — délibérément non différencié (401 partout) pour éviter
+        toute énumération de ressource par un appelant non autorisé.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    TooManyRequests:
+      description: Limite de débit atteinte.
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+    InternalError:
+      description: Erreur interne (jamais de trace de pile dans le corps).
+      content:
+        application/problem+json:
+          schema: { $ref: "#/components/schemas/Problem" }
+
+  schemas:
+    Problem:
+      type: object
+      properties:
+        type: { type: string, example: "about:blank" }
+        title: { type: string }
+        status: { type: integer }
+        trace_id: { type: string, format: uuid }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 12, maxLength: 1024 }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+        totp_code: { type: string, pattern: "^[0-9]{6}$", description: "Obligatoire pour CLINICIAN/ADMIN" }
+
+    SessionResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        token_type: { type: string, enum: [Bearer] }
+        expires_in: { type: integer, description: Secondes }
+
+    Me:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [PATIENT, CLINICIAN, ADMIN] }
+
+    ProfileUpdateRequest:
+      type: object
+      properties:
+        display_name: { type: string, maxLength: 100 }
+
+    ConsentRequest:
+      type: object
+      required: [purpose, version]
+      properties:
+        purpose: { type: string, enum: [CARE, LEARNING] }
+        version: { type: string, maxLength: 40 }
+
+    ConsentRevokeRequest:
+      type: object
+      required: [purpose]
+      properties:
+        purpose: { type: string, enum: [CARE, LEARNING] }
+
+    Phq9SubmitRequest:
+      type: object
+      required: [answers]
+      properties:
+        answers:
+          type: array
+          items: { type: integer, minimum: 0, maximum: 3 }
+          minItems: 9
+          maxItems: 9
+
+    Phq9Result:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        total_score: { type: integer, minimum: 0, maximum: 27 }
+        item9_score: { type: integer, minimum: 0, maximum: 3 }
+
+    Phq9HistoryItem:
+      type: object
+      properties:
+        id: { type: string }
+        instrument_version: { type: string }
+        total_score: { type: integer }
+        item9_score: { type: integer }
+        completed_at: { type: string, format: date-time }
+
+    Conversation:
+      type: object
+      properties:
+        id: { type: string }
+        status: { type: string, enum: [ACTIVE, CLOSED] }
+
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        author_type: { type: string, enum: [PATIENT, ASSISTANT] }
+        content: { type: string }
+        sequence_no: { type: integer }
+        created_at: { type: string, format: date-time }
+
+    MessageSendRequest:
+      type: object
+      required: [text]
+      properties:
+        text: { type: string, maxLength: 8000 }
+
+    MessageSendResponse:
+      type: object
+      properties:
+        patient_message: { $ref: "#/components/schemas/Message" }
+        assistant_message: { $ref: "#/components/schemas/Message" }
+
+    RelationshipCreateRequest:
+      type: object
+      required: [patient_id, clinician_id]
+      properties:
+        patient_id: { type: string }
+        clinician_id: { type: string }
+
+    Relationship:
+      type: object
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        patient_email: { type: string }
+        clinician_id: { type: string }
+        clinician_email: { type: string }
+        status: { type: string, enum: [ACTIVE, ENDED] }
+        created_at: { type: string, format: date-time }
+        ends_at: { type: string, format: date-time, nullable: true }
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [PATIENT, CLINICIAN, ADMIN] }
+        is_active: { type: boolean }
+        mfa_enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+
+    PatientSummary:
+      type: object
+      properties:
+        patient_id: { type: string }
+        display_name: { type: string }
+        latest_phq9_score: { type: integer, nullable: true }
+        latest_phq9_at: { type: string, format: date-time, nullable: true }
+        open_alert_count: { type: integer }
+
+    Timeline:
+      type: object
+      properties:
+        patient_id: { type: string }
+        display_name: { type: string }
+        phq9_history: { type: array, items: { $ref: "#/components/schemas/Phq9HistoryItem" } }
+        alerts: { type: array, items: { $ref: "#/components/schemas/Alert" } }
+        alert_actions:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: string }
+              alert_id: { type: string }
+              actor_id: { type: string }
+              action: { type: string }
+              justification: { type: string }
+              created_at: { type: string, format: date-time }
+
+    Alert:
+      type: object
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        patient_display_name: { type: string }
+        level: { type: string, enum: [GREEN, ORANGE, RED] }
+        status: { type: string, enum: [OPEN, ACKNOWLEDGED, IN_REVIEW, ESCALATED, RESOLVED, CLOSED, CANCELLED] }
+        score: { type: number }
+        policy_version: { type: string }
+        created_at: { type: string, format: date-time }
+        acknowledged_at: { type: string, format: date-time, nullable: true }
+
+    AlertActionRequest:
+      type: object
+      required: [action, justification]
+      properties:
+        action: { type: string, enum: [ACKNOWLEDGED, IN_REVIEW, ESCALATED, RESOLVED, CLOSED, CANCELLED] }
+        justification: { type: string, maxLength: 500 }
+
+    FeedbackItem:
+      type: object
+      properties:
+        id: { type: string }
+        anonymized_content: { type: string }
+        anonymization_version: { type: string }
+        sampled_at: { type: string, format: date-time }
+
+    FeedbackReviewRequest:
+      type: object
+      required: [decision, justification]
+      properties:
+        decision: { type: string, enum: [APPROVED, REJECTED] }
+        justification: { type: string, maxLength: 500 }
+
+    Dataset:
+      type: object
+      properties:
+        id: { type: string }
+        version: { type: string }
+        status: { type: string, enum: [DRAFT, FINALIZED] }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        item_count: { type: integer }
+
+    ModelRegisterRequest:
+      type: object
+      required: [kind, version]
+      properties:
+        kind: { type: string, enum: [LLM, EMOTION, RISK, CRISIS] }
+        version: { type: string }
+        dataset_id: { type: string, nullable: true }
+        metrics: { type: object, additionalProperties: true }
+
+    ModelVersion:
+      type: object
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [LLM, EMOTION, RISK, CRISIS] }
+        version: { type: string }
+        dataset_id: { type: string, nullable: true }
+        status: { type: string, enum: [DRAFT, PENDING_REVIEW, APPROVED, DEPLOYED, ROLLED_BACK, REJECTED] }
+        metrics_json: { type: string, description: "JSON sérialisé en chaîne" }
+        created_by: { type: string }
+        created_at: { type: string, format: date-time }
+        approval_count: { type: integer }
+
+    ModelDecisionRequest:
+      type: object
+      required: [decision, justification]
+      properties:
+        decision: { type: string, enum: [APPROVED, REJECTED] }
+        justification: { type: string, maxLength: 500 }

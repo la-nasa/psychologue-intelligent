@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Repère Administration</title><link rel="stylesheet" href="styles.css"></head>
+<body>
+  <div id="login" class="auth-shell">
+    <form id="login-form">
+      <p class="eyebrow">REPÈRE — ADMINISTRATION</p>
+      <h1>Connexion sécurisée</h1>
+      <label>E-mail<input name="email" type="email" autocomplete="email" required></label>
+      <label>Mot de passe<input name="password" type="password" autocomplete="current-password" required></label>
+      <label>Code d'authentification (TOTP)<input name="totp_code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" required></label>
+      <button>Se connecter</button>
+      <p id="login-message" class="message" role="status"></p>
+    </form>
+  </div>
+
+  <div id="dashboard" class="app-shell hidden">
+    <nav aria-label="Navigation principale">
+      <p class="eyebrow">REPÈRE ADMIN</p>
+      <button data-view="relationships" class="nav-item" aria-current="page">Relations</button>
+      <button data-view="users" class="nav-item">Utilisateurs</button>
+      <button data-view="learning" class="nav-item">Apprentissage</button>
+      <button id="logout" class="nav-item text">Se déconnecter</button>
+    </nav>
+
+    <main>
+      <section id="view-relationships" class="view">
+        <h2>Relations patient-clinicien</h2>
+        <p class="quiet">Seul un administrateur peut créer ou terminer une relation. Une relation active est requise avant qu'un clinicien puisse accéder au suivi d'un patient.</p>
+
+        <form id="create-relationship">
+          <label>Patiente / patient<select id="patient-select" required></select></label>
+          <label>Clinicien·ne<select id="clinician-select" required></select></label>
+          <button>Créer la relation</button>
+        </form>
+
+        <div class="filters">
+          <label>Statut<select id="relationship-status-filter"><option value="ACTIVE">Actives</option><option value="ENDED">Terminées</option><option value="">Toutes</option></select></label>
+        </div>
+        <table class="data-table" id="relationships-table">
+          <thead><tr><th scope="col">Patient</th><th scope="col">Clinicien</th><th scope="col">Statut</th><th scope="col">Créée le</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="relationships-empty">Aucune relation ne correspond à ce filtre.</p>
+      </section>
+
+      <section id="view-users" class="view hidden">
+        <h2>Utilisateurs</h2>
+        <div class="filters">
+          <label>Rôle<select id="user-role-filter"><option value="">Tous</option><option value="PATIENT">Patient</option><option value="CLINICIAN">Clinicien</option><option value="ADMIN">Administrateur</option></select></label>
+        </div>
+        <table class="data-table" id="users-table">
+          <thead><tr><th scope="col">E-mail</th><th scope="col">Rôle</th><th scope="col">Actif</th><th scope="col">MFA</th><th scope="col">Créé le</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="users-empty">Aucun utilisateur ne correspond à ce filtre.</p>
+      </section>
+
+      <section id="view-learning" class="view hidden">
+        <h2>Apprentissage continu</h2>
+        <p class="quiet">Seuls les messages de patients ayant un consentement d'apprentissage actif sont échantillonnés, puis anonymisés automatiquement avant toute revue clinicienne.</p>
+        <button id="trigger-sample">Échantillonner de nouveaux messages</button>
+
+        <h3>Datasets</h3>
+        <button id="create-dataset" class="secondary">Créer un dataset à partir des éléments approuvés</button>
+        <table class="data-table" id="datasets-table">
+          <thead><tr><th scope="col">Version</th><th scope="col">Statut</th><th scope="col">Éléments</th><th scope="col">Créé le</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="datasets-empty">Aucun dataset créé pour l'instant.</p>
+
+        <h3>Registre de modèles</h3>
+        <form id="register-model">
+          <label>Type<select name="kind"><option value="EMOTION">Émotion</option><option value="RISK">Risque</option><option value="CRISIS">Crise</option><option value="LLM">LLM</option></select></label>
+          <label>Version<input name="version" required placeholder="ex. emotion-classifier-dev-1"></label>
+          <label>Dataset (optionnel)<select name="dataset_id"><option value="">Aucun</option></select></label>
+          <button>Enregistrer le modèle</button>
+        </form>
+        <table class="data-table" id="models-table">
+          <thead><tr><th scope="col">Type</th><th scope="col">Version</th><th scope="col">Statut</th><th scope="col">Approbations</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="empty hidden" id="models-empty">Aucun modèle enregistré.</p>
+      </section>
+
+      <p id="app-message" class="message" role="status"></p>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body></html>
