@@ -42,16 +42,19 @@ def _default_engine_factory(model_path: Path, context_tokens: int) -> ChatEngine
     # file is type-checked -- expected, not a bug.
     from llama_cpp import Llama  # type: ignore[import-not-found]
 
-    # Deliberately NOT os.cpu_count(): inside a container that reports the
-    # *host's* full CPU count rather than its actual cgroup share (common,
-    # and true of this deployment), that wildly oversubscribes real cores --
-    # measured live on the Railway deployment going from ~40s/reply to over
-    # two minutes when threads were sized that way. A small fixed default,
-    # overridable per-deployment via PI_LLM_THREADS once the real allocation
-    # is known, is safer than trusting a number the OS can't be trusted to
-    # report accurately in a container.
-    threads = int(os.environ.get("PI_LLM_THREADS", "4"))
-    return Llama(model_path=str(model_path), n_ctx=context_tokens, n_threads=threads, verbose=False)
+    # Deliberately not passing n_threads: two explicit values were measured
+    # live on the Railway deployment (os.cpu_count() -- badly wrong inside a
+    # container that reports the host's full count, not its cgroup share; and
+    # a small fixed 4) and both were *slower* than llama-cpp-python's own
+    # default heuristic, not faster, on this shared-CPU host. Real generation
+    # latency here is still high regardless (tens of seconds per reply, see
+    # ADR-005) -- a smaller model or dedicated/GPU hosting would address that
+    # properly; guessing at a thread count on a noisy host does not.
+    # PI_LLM_THREADS remains available as an escape hatch if a future,
+    # cleaner measurement on non-shared hardware justifies overriding this.
+    threads_override = os.environ.get("PI_LLM_THREADS")
+    kwargs: dict[str, int] = {"n_threads": int(threads_override)} if threads_override else {}
+    return Llama(model_path=str(model_path), n_ctx=context_tokens, verbose=False, **kwargs)
 
     return Llama(model_path=str(model_path), n_ctx=context_tokens, verbose=False)
 

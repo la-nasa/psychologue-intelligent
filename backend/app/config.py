@@ -21,7 +21,7 @@ class Settings:
     responder_mode: str = "templated"
     llm_model_path: Path = Path("work/models/qwen2.5-3b-instruct-q4_k_m.gguf")
     llm_context_tokens: int = 4096
-    llm_max_reply_tokens: int = 220
+    llm_max_reply_tokens: int = 120
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -34,7 +34,7 @@ class Settings:
         responder_mode = os.environ.get("PI_RESPONDER_MODE", "templated")
         llm_model_path = Path(os.environ.get("PI_LLM_MODEL_PATH", "work/models/qwen2.5-3b-instruct-q4_k_m.gguf"))
         llm_context_tokens = int(os.environ.get("PI_LLM_CONTEXT_TOKENS", "4096"))
-        llm_max_reply_tokens = int(os.environ.get("PI_LLM_MAX_REPLY_TOKENS", "220"))
+        llm_max_reply_tokens = int(os.environ.get("PI_LLM_MAX_REPLY_TOKENS", "120"))
         return cls(
             database_path=path, environment=environment, crisis_policy_path=policy_path,
             crisis_rules_path=rules_path, response_templates_path=templates_path, emotion_model_path=emotion_path,
