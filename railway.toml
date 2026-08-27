@@ -2,7 +2,11 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python scripts/serve.py"
+# bootstrap_privileged_users.py runs in the same container/volume as the app itself
+# (unlike a pre-deploy command, which runs in a separate, non-persistent filesystem
+# here) and is idempotent, so it is safe to leave in the startup path permanently.
+# It does nothing unless PI_BOOTSTRAP_<ROLE>_EMAIL/_PASSWORD variables are set.
+startCommand = "python scripts/bootstrap_privileged_users.py; python scripts/serve.py"
 healthcheckPath = "/health/live"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

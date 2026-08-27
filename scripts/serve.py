@@ -20,8 +20,9 @@ from wsgiref.simple_server import WSGIServer, make_server
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from backend.app.config import Settings
 from dev_server import make_dev_app
+
+from backend.app.config import Settings
 
 
 class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
@@ -30,7 +31,10 @@ class ThreadingWSGIServer(ThreadingMixIn, WSGIServer):
 
 def main() -> None:
     settings = Settings.from_env()
-    host = os.environ.get("HOST", "0.0.0.0")
+    # Binding all interfaces is required here, not a default left in by accident: a
+    # container platform (Railway) routes external traffic to whatever the process
+    # binds inside its network namespace, which is not reachable via 127.0.0.1.
+    host = os.environ.get("HOST", "0.0.0.0")  # nosec B104
     port = int(os.environ.get("PORT", "8000"))
     app = make_dev_app(settings)
     with make_server(host, port, app, server_class=ThreadingWSGIServer) as server:
