@@ -14,6 +14,11 @@ dev = ["ruff==0.16.4", "bandit==1.9.4", "pip-audit==2.10.1", "mypy==2.3.1", "cov
 # never imports scikit-learn, it only reads the exported JSON weights
 # (backend/app/emotion.py reimplements inference in pure Python).
 ml = ["scikit-learn==1.9.0"]
+# Runtime dependency for the self-hosted generative responder (ADR-005), a
+# deliberate, explicit exception to ADR-003 "zero runtime dependencies" for
+# this one feature. backend/app/local_llm.py imports llama_cpp lazily, so
+# nothing else in the app requires this extra to be installed.
+llm = ["llama-cpp-python==0.3.35"]
 
 [tool.setuptools.packages.find]
 include = ["backend*"]

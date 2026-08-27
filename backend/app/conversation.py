@@ -7,6 +7,7 @@ from .auth import utc_now
 from .crisis import RiskModel
 from .emotion import EmotionModel
 from .notifications import NotificationProvider
+from .personalization import build_context
 from .pipeline import handle_incoming_message
 from .policy import CrisisPolicy, CrisisRules, ResponseTemplates
 from .responder import compose_reply
@@ -89,7 +90,11 @@ def send_message(
     )
     conn.execute("UPDATE messages SET crisis_event_id=? WHERE id=?", (outcome.crisis_event_id, patient_message_id))
 
-    reply_text, responder_version = compose_reply(outcome.decision, templates, llm, text)
+    # Built (and only ever used) for the GREEN path inside compose_reply -- see
+    # personalization.py and responder.py's docstring for why this can never
+    # touch how ORANGE/RED are framed.
+    context = build_context(conn, patient_id, conversation_id)
+    reply_text, responder_version = compose_reply(outcome.decision, templates, llm, text, context)
     assistant_message_id = str(uuid4())
     assistant_seq = patient_seq + 1
     conn.execute(

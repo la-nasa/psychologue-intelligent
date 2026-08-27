@@ -16,6 +16,7 @@ Ce document liste, honnêtement, l'écart entre la fondation actuelle (Phase 13,
 | TLS | Aucun en développement local (HTTP) ; terminé en périphérie par Railway sur le déploiement de démonstration (voir `railway.md`) | TLS obligatoire en frontière de production — déjà couvert pour un déploiement Railway, à revérifier pour toute autre infrastructure |
 | Validation clinique | Aucune — voir `docs/reports/phase-*` pour les avertissements répétés | Revue par un psychologue clinicien, un psychiatre si besoin, et un comité d'éthique avant toute utilisation avec de vrais patients |
 | Test d'intrusion | Aucun (seulement des tests adversariaux automatisés internes, Phase 10) | Un test d'intrusion par une équipe de sécurité externe |
+| Réponses du répondeur génératif (ADR-005) | Modèle auto-hébergé (Qwen2.5-3B-Instruct) en place, routage ORANGE/RED structurellement inatteignable vérifié par test ; aucune revue humaine du contenu réellement généré, aucun corpus de tests de jailbreak/prompt-injection (Section 41 du prompt maître) | Revue clinique d'un échantillon réel de réponses générées ; corpus de tests adversariaux versionné contre le modèle déployé, pas seulement contre la logique de routage |
 
 ## Fortement recommandé
 

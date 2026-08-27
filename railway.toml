@@ -1,13 +1,22 @@
 [build]
 builder = "NIXPACKS"
+# The default auto-detected `pip install .` skips optional-dependency groups.
+# The `llm` extra (llama-cpp-python, ADR-005) is required at runtime once
+# PI_RESPONDER_MODE=local-llm, so it must be installed at build time here.
+buildCommand = "pip install --upgrade build setuptools && pip install '.[llm]'"
 
 [deploy]
-# bootstrap_privileged_users.py runs in the same container/volume as the app itself
-# (unlike a pre-deploy command, which runs in a separate, non-persistent filesystem
-# here) and is idempotent, so it is safe to leave in the startup path permanently.
-# It does nothing unless PI_BOOTSTRAP_<ROLE>_EMAIL/_PASSWORD variables are set.
-startCommand = "python scripts/bootstrap_privileged_users.py; python scripts/serve.py"
+# bootstrap_llm_model.py and bootstrap_privileged_users.py both run in the same
+# container/volume as the app itself (unlike a pre-deploy command, which runs in
+# a separate, non-persistent filesystem here) and are both idempotent, so it is
+# safe to leave them in the startup path permanently. Neither does anything
+# unless its own env vars are set (PI_RESPONDER_MODE=local-llm; PI_BOOTSTRAP_*).
+startCommand = "python scripts/bootstrap_llm_model.py; python scripts/bootstrap_privileged_users.py; python scripts/serve.py"
 healthcheckPath = "/health/live"
-healthcheckTimeout = 30
+# Generous on purpose: the first deploy with PI_RESPONDER_MODE=local-llm
+# downloads a ~2.1 GB model file before the server can bind and answer the
+# healthcheck. Subsequent deploys reuse the cached file on the persistent
+# volume and start in a couple of seconds, well under this ceiling.
+healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3

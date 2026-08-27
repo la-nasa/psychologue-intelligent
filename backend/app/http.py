@@ -9,11 +9,12 @@ from urllib.parse import parse_qs
 from uuid import uuid4
 
 from . import admin, clinician, conversation, learning
-from .ai import KeywordRiskModel, TemplatedSupportiveResponder
+from .ai import KeywordRiskModel, LLMProvider, TemplatedSupportiveResponder
 from .auth import AuthService, require_role
 from .config import Settings
 from .db import connect, migrate
 from .emotion import TfidfLogisticEmotionModel
+from .local_llm import LocalGenerativeResponder
 from .notifications import LogNotificationProvider
 from .policy import load_crisis_policy, load_crisis_rules, load_response_templates
 
@@ -80,7 +81,19 @@ def application(settings: Settings) -> Callable:
     crisis_rules = load_crisis_rules(settings.crisis_rules_path)
     response_templates = load_response_templates(settings.response_templates_path)
     risk_model = KeywordRiskModel()
-    llm = TemplatedSupportiveResponder(response_templates.green_acknowledgments)
+    templated_responder = TemplatedSupportiveResponder(response_templates.green_acknowledgments)
+    if settings.responder_mode == "local-llm":
+        # ADR-005: a self-hosted generative model, GREEN-level replies only --
+        # ORANGE/RED are structurally unreachable from it (see responder.py).
+        # templated_responder is its fail-safe fallback, not a separate mode:
+        # any load or generation failure degrades to the fixed acknowledgment
+        # rather than ever losing a reply or crashing the request.
+        llm: LLMProvider = LocalGenerativeResponder(
+            settings.llm_model_path, fallback=templated_responder,
+            max_reply_tokens=settings.llm_max_reply_tokens, context_tokens=settings.llm_context_tokens,
+        )
+    else:
+        llm = templated_responder
     notification_provider = LogNotificationProvider()
     try:
         emotion_model = TfidfLogisticEmotionModel(settings.emotion_model_path)

@@ -5,7 +5,7 @@ from typing import Protocol
 
 class LLMProvider(Protocol):
     version: str
-    def generate(self, text: str) -> str: ...
+    def generate(self, text: str, context: dict | None = None) -> str: ...
 
 
 class RiskModel(Protocol):
@@ -28,7 +28,10 @@ class TemplatedSupportiveResponder:
             raise ValueError("at least one acknowledgment template is required")
         self.acknowledgments = acknowledgments
 
-    def generate(self, text: str) -> str:
+    def generate(self, text: str, context: dict | None = None) -> str:
+        # context (display name, PHQ-9 history, recent messages) is deliberately
+        # ignored here: this class's entire contract is a fixed rotation, never
+        # personalized text, so there is nothing safe to do with it.
         index = sum(text.encode("utf-8")) % len(self.acknowledgments)
         return self.acknowledgments[index]
 
