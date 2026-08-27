@@ -66,7 +66,11 @@ def main() -> None:
             service.authenticate(args.email, password, "verify-login", totp_code=totp_code)
             print(f"OK: {args.email} authenticated successfully.")
         except PermissionError as error:
-            print(f"FAILED: {args.email} could not authenticate: {error}")
+            # Never print the password itself: a length + non-reversible fingerprint is
+            # enough to tell "the env var holds a different value than expected" apart
+            # from "the value is right but something else is wrong".
+            fingerprint = hashlib.sha256(password.encode("utf-8")).hexdigest()[:8]
+            print(f"FAILED: {args.email} could not authenticate: {error} (password length={len(password)}, fingerprint={fingerprint})")
             sys.exit(1)
     finally:
         conn.close()
