@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import getpass
+import os
 import secrets
 import sys
 from pathlib import Path
@@ -30,9 +31,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("email")
     parser.add_argument("role", choices=["CLINICIAN", "ADMIN"])
+    parser.add_argument(
+        "--password-env",
+        help="Read the temporary password from this environment variable instead of "
+        "an interactive prompt. For scripted provisioning (e.g. a deploy platform's "
+        "pre-deploy command) where there is no TTY to prompt against.",
+    )
     args = parser.parse_args()
 
-    password = getpass.getpass("Temporary password (12-1024 characters, share it out of band): ")
+    if args.password_env:
+        password = os.environ.get(args.password_env)
+        if not password:
+            parser.error(f"environment variable {args.password_env} is not set")
+    else:
+        password = getpass.getpass("Temporary password (12-1024 characters, share it out of band): ")
     settings = Settings.from_env()
     conn = connect(settings.database_path)
     migrate(conn)
