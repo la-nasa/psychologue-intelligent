@@ -13,7 +13,7 @@ Ce document liste, honnêtement, l'écart entre la fondation actuelle (Phase 13,
 | Politiques cliniques | Fichiers JSON versionnés en développement, non approuvés (`approved_by`/`approved_at` à `null`) | Approbation réelle par l'équipe clinique locale avant tout déploiement hors développement — le chargeur (`policy.py`) refuse déjà de démarrer sans ça, c'est un contrôle actif, pas une formalité |
 | Numéros d'urgence / contacts | `emergency_contacts` vide par défaut | Configuration validée localement par pays/établissement, jamais codée en dur (voir `config/policies/crisis-policy-v1.json`) |
 | Chiffrement au repos | Contenu des messages et réponses PHQ-9 en clair en SQLite de développement | Chiffrement applicatif par champ pour les données cliniques sensibles, une fois la base de production choisie |
-| TLS | Aucun (développement local en HTTP) | TLS obligatoire en frontière de production |
+| TLS | Aucun en développement local (HTTP) ; terminé en périphérie par Railway sur le déploiement de démonstration (voir `railway.md`) | TLS obligatoire en frontière de production — déjà couvert pour un déploiement Railway, à revérifier pour toute autre infrastructure |
 | Validation clinique | Aucune — voir `docs/reports/phase-*` pour les avertissements répétés | Revue par un psychologue clinicien, un psychiatre si besoin, et un comité d'éthique avant toute utilisation avec de vrais patients |
 | Test d'intrusion | Aucun (seulement des tests adversariaux automatisés internes, Phase 10) | Un test d'intrusion par une équipe de sécurité externe |
 
@@ -37,3 +37,5 @@ Ce document liste, honnêtement, l'écart entre la fondation actuelle (Phase 13,
 ## Décision explicite requise avant d'aller plus loin
 
 Ce document ne recommande pas de date ni de méthode de déploiement : ce sont des décisions qui appartiennent à l'équipe clinique, juridique et opérationnelle du projet, pas à l'agent qui a construit cette fondation.
+
+Un déploiement de démonstration technique existe sur Railway (voir `railway.md`) : il n'allège aucune des exigences de cette page, il illustre seulement que la fondation tourne bien en dehors d'une machine de développement locale.

@@ -41,6 +41,14 @@ Voir `rollback.md` Section 3 : `POST /api/v1/admin/learning/models/{id}/deploy` 
 2. Le coût de connexion SQLite par requête est d'environ 3 ms mesuré isolément (Phase 11–12) : un écart bien plus important suggère un problème ailleurs (verrouillage SQLite sous contention, hachage de mot de passe avec un nombre d'itérations mal configuré — vérifier `Settings.password_iterations`, qui doit rester 600 000 en environnement réel, pas la valeur réduite utilisée dans les tests).
 3. Si plusieurs threads/processus accèdent à la même base SQLite sous forte charge concurrente, du « database is locked » peut apparaître : c'est un signal que SQLite a atteint sa limite pour ce volume, pas un bug à corriger dans le code applicatif — voir `production-readiness.md` (migration PostgreSQL).
 
+## Des comptes ou des données disparaissent après un redéploiement Railway
+
+**Ce n'est pas un scénario théorique : cela s'est produit pendant le déploiement de démonstration de ce projet** — un volume signalé comme « créé et monté avec succès » par un outil d'infrastructure ne l'était en réalité pas, si bien que chaque redéploiement repartait d'une base de données vide sans qu'aucune erreur ne le signale. Détail complet, cause et correction : `railway.md`, Piège n°3.
+
+1. Ne jamais se fier au seul message de confirmation d'un outil d'attachement de volume. Vérifier positivement la configuration du service (présence de `volumeMounts`) après toute création ou modification de volume.
+2. Pour confirmer une persistance réelle : écrire une donnée, déclencher un redéploiement complet (pas un simple redémarrage), puis relire cette donnée depuis le déploiement suivant. Une vérification qui reste dans le même déploiement ne prouve rien.
+3. Si des données ont réellement disparu : elles sont perdues sans recours (pas de sauvegarde configurée, voir `production-readiness.md`) — reprovisionner ce qui est reprovisionnable (comptes via `scripts/bootstrap_privileged_users.py`) et documenter l'incident avant de continuer.
+
 ## Contact et escalade
 
 Ce document ne liste pas de contacts nominatifs (aucun n'a été fourni au moment de la rédaction) : les compléter avant tout déploiement réel, dans `config/policies/crisis-policy-v1.json::emergency_contacts` pour les urgences patient, et dans une liste d'astreinte technique séparée pour les incidents d'infrastructure.
