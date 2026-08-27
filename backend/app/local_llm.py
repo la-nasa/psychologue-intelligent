@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -37,10 +38,17 @@ def _default_engine_factory(model_path: Path, context_tokens: int) -> ChatEngine
     # module that transitively imports it -- never requires llama-cpp-python to
     # be installed unless a LocalGenerativeResponder is actually constructed
     # with responder_mode="local-llm". See ADR-005 and pyproject.toml's `llm` extra.
-    # llama-cpp-python is an optional extra (pyproject.toml's `llm` group), not
-    # installed in every environment that type-checks this file -- mypy cannot
-    # resolve it without the extra installed, which is expected, not a bug.
+    # It is also an optional extra mypy won't have installed everywhere this
+    # file is type-checked -- expected, not a bug.
     from llama_cpp import Llama  # type: ignore[import-not-found]
+
+    # llama-cpp-python's own default is a conservative guess (roughly half the
+    # visible CPUs) that badly under-uses a container with a generous CPU
+    # limit -- measured live on the Railway deployment at ~40s/reply with the
+    # default before this fix. CPU-bound generation scales close to linearly
+    # with threads up to the physical core count, so use everything visible.
+    threads = os.cpu_count() or 4
+    return Llama(model_path=str(model_path), n_ctx=context_tokens, n_threads=threads, n_threads_batch=threads, verbose=False)
 
     return Llama(model_path=str(model_path), n_ctx=context_tokens, verbose=False)
 
