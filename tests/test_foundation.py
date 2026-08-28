@@ -109,6 +109,36 @@ class FoundationTests(unittest.TestCase):
         self.assertEqual(invoke(self.app, "POST", "/api/v1/consents", b'{"purpose":"LEARNING","version":"1"}', auth)[0], "204 No Content")
         self.assertEqual(invoke(self.app, "POST", "/api/v1/consents/revoke", b'{"purpose":"LEARNING"}', auth)[0], "204 No Content")
         self.assertEqual(invoke(self.app, "POST", "/api/v1/privacy/deletion-requests", b"{}", auth)[0], "202 Accepted")
+        _, _, profile_payload = invoke(self.app, "GET", "/api/v1/profile", b"", auth)
+        profile = __import__("json").loads(profile_payload)
+        self.assertEqual(profile["display_name"], "Camille")
+        self.assertEqual(profile["consents"], ["CARE"])  # LEARNING was revoked above
+
+    def test_onboarding_completed_at_is_stamped_once_and_never_overwritten(self):
+        # Root cause of a real user-reported bug: the frontend used to have no
+        # way to tell a first-time login apart from a returning one, so it
+        # showed the onboarding form (re-enter name, re-tick consent boxes)
+        # on every single login. onboarding_completed_at is the fix's signal.
+        registration = b'{"email":"onboarding@example.test","password":"correct horse battery"}'
+        invoke(self.app, "POST", "/api/v1/auth/register", registration, {"Content-Type": "application/json"})
+        _, _, payload = invoke(self.app, "POST", "/api/v1/auth/sessions", registration, {"Content-Type": "application/json"})
+        token = __import__("json").loads(payload)["access_token"]
+        auth = {"Content-Type": "application/json", "Authorization": f"Bearer {token}"}
+
+        _, _, before_payload = invoke(self.app, "GET", "/api/v1/profile", b"", auth)
+        self.assertIsNone(__import__("json").loads(before_payload)["onboarding_completed_at"])
+
+        invoke(self.app, "POST", "/api/v1/profile", b'{"display_name":"Alex","about_me":"aime la marche"}', auth)
+        _, _, after_first = invoke(self.app, "GET", "/api/v1/profile", b"", auth)
+        first_profile = __import__("json").loads(after_first)
+        self.assertIsNotNone(first_profile["onboarding_completed_at"])
+        self.assertEqual(first_profile["about_me"], "aime la marche")
+
+        invoke(self.app, "POST", "/api/v1/profile", b'{"display_name":"Alex","about_me":"aime aussi le velo"}', auth)
+        _, _, after_second = invoke(self.app, "GET", "/api/v1/profile", b"", auth)
+        second_profile = __import__("json").loads(after_second)
+        self.assertEqual(second_profile["onboarding_completed_at"], first_profile["onboarding_completed_at"])
+        self.assertEqual(second_profile["about_me"], "aime aussi le velo")  # editable, unlike onboarding_completed_at
 
     def test_phq9_score_validation_and_history(self):
         self.assertEqual(calculate([0, 1, 2, 3, 0, 1, 2, 3, 1]).total_score, 13)

@@ -92,15 +92,32 @@ class AuthService:
         self.conn.execute("UPDATE sessions SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL", (utc_now().isoformat(), token_hash(token)))
         self.audit(request_id, "auth.logout", "SUCCESS")
 
-    def save_profile(self, user_id: str, display_name: str, request_id: str) -> None:
+    def save_profile(self, user_id: str, display_name: str, request_id: str, about_me: str = "") -> None:
         name = display_name.strip()
         if len(name) > 100:
             raise ValueError("display name too long")
+        about = about_me.strip()
+        if len(about) > 2000:
+            raise ValueError("about_me too long")
+        now = utc_now().isoformat()
+        # onboarding_completed_at is stamped on the *first* save only (COALESCE
+        # keeps whatever was already there): this is also how the frontend
+        # tells a first-time onboarding apart from a later profile edit --
+        # see GET /api/v1/profile.
         self.conn.execute(
-            "INSERT INTO profiles(user_id, display_name, updated_at) VALUES (?, ?, ?) ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, updated_at=excluded.updated_at",
-            (user_id, name, utc_now().isoformat()),
+            "INSERT INTO profiles(user_id, display_name, about_me, onboarding_completed_at, updated_at) VALUES (?, ?, ?, ?, ?) "
+            "ON CONFLICT(user_id) DO UPDATE SET display_name=excluded.display_name, about_me=excluded.about_me, "
+            "onboarding_completed_at=COALESCE(profiles.onboarding_completed_at, excluded.onboarding_completed_at), updated_at=excluded.updated_at",
+            (user_id, name, about or None, now, now),
         )
         self.audit(request_id, "profile.update", "SUCCESS", user_id, "PROFILE", user_id)
+
+    def get_profile(self, user_id: str) -> dict:
+        row = self.conn.execute("SELECT display_name, about_me, onboarding_completed_at FROM profiles WHERE user_id=?", (user_id,)).fetchone()
+        consents = sorted({r["purpose"] for r in self.conn.execute("SELECT purpose FROM consents WHERE user_id=? AND revoked_at IS NULL", (user_id,)).fetchall()})
+        if row is None:
+            return {"display_name": "", "about_me": None, "onboarding_completed_at": None, "consents": consents}
+        return {"display_name": row["display_name"], "about_me": row["about_me"], "onboarding_completed_at": row["onboarding_completed_at"], "consents": consents}
 
     def grant_consent(self, user_id: str, purpose: str, version: str, request_id: str) -> None:
         if purpose not in {"CARE", "LEARNING"} or not version or len(version) > 40:

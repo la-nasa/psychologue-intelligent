@@ -173,6 +173,9 @@ MIGRATIONS: tuple[tuple[str, str], ...] = (
             UNIQUE(model_version_id, approver_id)
         );
     """),
+    ("011_profile_details", """
+        ALTER TABLE profiles ADD COLUMN about_me TEXT;
+    """),
 )
 
 

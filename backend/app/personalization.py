@@ -35,21 +35,31 @@ def phq9_severity_band(total_score: int) -> str:
 
 def build_context(conn, patient_id: str, conversation_id: str) -> dict:
     trend = _phq9_trend(conn, patient_id)
+    display_name, about_me = _profile_fields(conn, patient_id)
     return {
-        "display_name": _display_name(conn, patient_id),
+        "display_name": display_name,
+        "about_me": about_me,
         "phq9_trend": trend,
         "phq9_severity_band": phq9_severity_band(trend[0]["total_score"]) if trend else None,
         "recent_messages": _recent_messages(conn, conversation_id),
     }
 
 
-def _display_name(conn, patient_id: str) -> str | None:
+def _profile_fields(conn, patient_id: str) -> tuple[str | None, str | None]:
+    # about_me is exactly what the patient chose to write about themselves
+    # (see http.py POST /api/v1/profile) -- it feeds this real-time reply
+    # personalization only. It is never included in continuous-learning
+    # dataset sampling (learning.py samples message content, not profiles),
+    # which stays governed by the separate LEARNING consent.
     try:
-        row = conn.execute("SELECT display_name FROM profiles WHERE user_id=?", (patient_id,)).fetchone()
+        row = conn.execute("SELECT display_name, about_me FROM profiles WHERE user_id=?", (patient_id,)).fetchone()
     except Exception:
-        return None
-    name = (row["display_name"] if row else "") or ""
-    return name.strip() or None
+        return None, None
+    if row is None:
+        return None, None
+    name = (row["display_name"] or "").strip() or None
+    about = (row["about_me"] or "").strip() or None
+    return name, about
 
 
 def _phq9_trend(conn, patient_id: str) -> list[dict]:

@@ -40,7 +40,7 @@ Désactivé par défaut (`PI_RESPONDER_MODE=templated`) : la fondation reste tes
 ```bash
 pip install -e ".[llm]"
 export PI_RESPONDER_MODE=local-llm
-export PI_LLM_MODEL_PATH=work/models/qwen2.5-3b-instruct-q4_k_m.gguf
+export PI_LLM_MODEL_PATH=work/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
 python scripts/bootstrap_llm_model.py   # télécharge ~2,1 Go une seule fois, idempotent
 ```
 

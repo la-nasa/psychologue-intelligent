@@ -69,7 +69,7 @@ class BootstrapLlmModelTests(unittest.TestCase):
         # fail the integrity check in test_downloads_when_missing above's real
         # (non-mocked) counterpart on an actual deploy.
         self.assertGreater(EXPECTED_SIZE_BYTES, 0)
-        self.assertIn("7dabda4d13d513e3e842b20f0d435c732f172cbe", bootstrap_llm_model.MODEL_URL)
+        self.assertIn("91cad51170dc346986eccefdc2dd33a9da36ead9", bootstrap_llm_model.MODEL_URL)
 
 
 if __name__ == "__main__":

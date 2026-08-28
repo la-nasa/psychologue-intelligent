@@ -23,12 +23,16 @@ from backend.app.config import Settings
 
 # Pinned to an exact repo revision, not "main", for the same reason
 # ml/train_emotion_classifier.py pins its dataset source: reproducibility.
-# Apache-2.0 licensed (see https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF).
+# Apache-2.0 licensed (see https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF).
+# Switched down from the 3B variant after live measurement on the Railway
+# deployment showed 30s-2min per reply -- roughly half the parameters should
+# roughly halve CPU-bound generation time, at a real but acceptable quality
+# cost for short supportive replies (see ADR-005).
 MODEL_URL = (
-    "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/"
-    "7dabda4d13d513e3e842b20f0d435c732f172cbe/qwen2.5-3b-instruct-q4_k_m.gguf"
+    "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/"
+    "91cad51170dc346986eccefdc2dd33a9da36ead9/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 )
-EXPECTED_SIZE_BYTES = 2_104_932_768
+EXPECTED_SIZE_BYTES = 1_117_320_736
 
 
 def main() -> None:

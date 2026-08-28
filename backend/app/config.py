@@ -19,7 +19,7 @@ class Settings:
     # a self-hosted generative model for GREEN-level replies only -- ORANGE/RED
     # always come from fixed templates regardless of this setting, see responder.py).
     responder_mode: str = "templated"
-    llm_model_path: Path = Path("work/models/qwen2.5-3b-instruct-q4_k_m.gguf")
+    llm_model_path: Path = Path("work/models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
     llm_context_tokens: int = 4096
     llm_max_reply_tokens: int = 120
 
@@ -32,7 +32,7 @@ class Settings:
         templates_path = Path(os.environ.get("PI_RESPONSE_TEMPLATES_PATH", "config/policies/response-templates-v1.json"))
         emotion_path = Path(os.environ.get("PI_EMOTION_MODEL_PATH", "ml/artifacts/emotion-classifier-v1.json"))
         responder_mode = os.environ.get("PI_RESPONDER_MODE", "templated")
-        llm_model_path = Path(os.environ.get("PI_LLM_MODEL_PATH", "work/models/qwen2.5-3b-instruct-q4_k_m.gguf"))
+        llm_model_path = Path(os.environ.get("PI_LLM_MODEL_PATH", "work/models/qwen2.5-1.5b-instruct-q4_k_m.gguf"))
         llm_context_tokens = int(os.environ.get("PI_LLM_CONTEXT_TOKENS", "4096"))
         llm_max_reply_tokens = int(os.environ.get("PI_LLM_MAX_REPLY_TOKENS", "120"))
         return cls(

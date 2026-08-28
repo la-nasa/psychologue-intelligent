@@ -124,10 +124,17 @@ paths:
         "401": { $ref: "#/components/responses/Rejected" }
 
   /api/v1/profile:
+    get:
+      tags: [Patient]
+      summary: Lecture du profil patient courant
+      description: Inclut `onboarding_completed_at` (permet au frontend de distinguer un premier passage d'une modification ultérieure) et la liste des finalités de consentement actuellement actives.
+      responses:
+        "200": { description: Profil courant, content: { application/json: { schema: { $ref: "#/components/schemas/Profile" } } } }
+        "401": { $ref: "#/components/responses/Rejected" }
     post:
       tags: [Patient]
       summary: Mise à jour du profil patient
-      description: Seul `display_name` est pris en compte ; tout autre champ (ex. `role`) est ignoré.
+      description: Seuls `display_name` et `about_me` sont pris en compte ; tout autre champ (ex. `role`) est ignoré. `onboarding_completed_at` est renseigné automatiquement lors du tout premier appel, jamais écrasé ensuite.
       requestBody:
         content: { application/json: { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } } }
       responses:
@@ -488,6 +495,15 @@ components:
       type: object
       properties:
         display_name: { type: string, maxLength: 100 }
+        about_me: { type: string, maxLength: 2000, description: "Contexte facultatif décrit par le patient lui-même, utilisé pour personnaliser les réponses GREEN générées (voir ADR-005) ; jamais transmis au pipeline d'apprentissage continu, qui reste régi par le consentement LEARNING séparé." }
+
+    Profile:
+      type: object
+      properties:
+        display_name: { type: string }
+        about_me: { type: string, nullable: true }
+        onboarding_completed_at: { type: string, format: date-time, nullable: true }
+        consents: { type: array, items: { type: string, enum: [CARE, LEARNING] } }
 
     ConsentRequest:
       type: object

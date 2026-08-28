@@ -179,8 +179,10 @@ def application(settings: Settings) -> Callable:
             user = service.current_user(token, request_id)
             if method == "GET" and path == "/api/v1/me":
                 return respond("200 OK", {"id": user["id"], "email": user["email"], "role": user["role"]})
+            if method == "GET" and path == "/api/v1/profile":
+                return respond("200 OK", service.get_profile(user["id"]))
             if method == "POST" and path == "/api/v1/profile":
-                service.save_profile(user["id"], str(data.get("display_name", "")), request_id)
+                service.save_profile(user["id"], str(data.get("display_name", "")), request_id, about_me=str(data.get("about_me", "")))
                 return respond("204 No Content", {})
             if method == "POST" and path == "/api/v1/consents":
                 service.grant_consent(user["id"], str(data.get("purpose", "")), str(data.get("version", "")), request_id)
