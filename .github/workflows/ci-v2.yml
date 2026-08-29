@@ -1,0 +1,107 @@
+name: CI (V2 server)
+
+on:
+  pull_request:
+    paths: ["server/**", ".github/workflows/ci-v2.yml", "docker-compose.yml"]
+  push:
+    branches: [main]
+    paths: ["server/**", ".github/workflows/ci-v2.yml"]
+
+defaults:
+  run:
+    working-directory: server
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: pi
+          POSTGRES_PASSWORD: pi_dev_only
+          POSTGRES_DB: psychologue_intelligent
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U pi -d psychologue_intelligent"
+          --health-interval 3s --health-timeout 3s --health-retries 20
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 3s --health-timeout 3s --health-retries 20
+
+    env:
+      PI_ENV: testing
+      # L'app tourne comme pi_app (soumis RLS) ; les migrations comme pi (propriétaire).
+      PI_DATABASE_URL: postgresql+asyncpg://pi_app:pi_app_dev_only@localhost:5432/psychologue_intelligent
+      PI_DATABASE_URL_SYNC: postgresql+psycopg://pi:pi_dev_only@localhost:5432/psychologue_intelligent
+      PI_REDIS_URL: redis://localhost:6379/0
+      PI_OTEL_ENABLED: "false"
+      PI_JWT_SIGNING_KEY: ci-only-not-a-real-secret
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[dev]"
+
+      - name: Create least-privilege app role (pi_app)
+        env:
+          PGPASSWORD: pi_dev_only
+        run: psql -h localhost -U pi -d psychologue_intelligent -v ON_ERROR_STOP=1 -f ../ops/postgres-init.d/01-app-role.sql
+
+      - name: Lint (ruff)
+        run: ruff check .
+
+      - name: Type check (mypy)
+        run: mypy app
+
+      - name: Migrations apply cleanly
+        run: alembic upgrade head
+
+      - name: Migrations are reversible
+        run: |
+          alembic downgrade base
+          alembic upgrade head
+
+      - name: Tests + coverage (gate 85%)
+        run: |
+          coverage run -m pytest
+          coverage report
+
+      - name: SAST (bandit)
+        run: bandit -r app scripts -q
+
+      - name: Dependency audit (pip-audit)
+        run: pip-audit
+
+  compose-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+      - name: docker compose up + healthcheck
+        run: |
+          docker compose up -d --build postgres redis api
+          for i in $(seq 1 40); do
+            if curl -fs http://localhost:8000/health/live; then echo "api live"; break; fi
+            sleep 3
+          done
+          docker compose exec -T api alembic upgrade head
+          curl -fs http://localhost:8000/health/ready
+          # bootstrap idempotent
+          docker compose exec -T api python -m scripts.bootstrap \
+            --org-slug demo --org-name "Demo" --email admin@demo.example.com \
+            --password 'ci-bootstrap-pw-1234' --role ADMIN
+      - name: logs on failure
+        if: failure()
+        run: docker compose logs
+      - run: docker compose down -v
+        if: always()
+        working-directory: .

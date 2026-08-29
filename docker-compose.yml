@@ -1,0 +1,106 @@
+# Psychologue Intelligent V2 — développement / test / CI.
+# `docker compose up` + `pytest` est le contrat reproductible (ADR-006).
+# Aucun secret réel ici : voir .env.example. La v1 (backend/, frontend/) n'utilise
+# pas ce fichier et reste exécutable indépendamment.
+#
+# Les ports hôte sont volontairement décalés (5xxxx) pour cohabiter avec d'autres
+# stacks Docker sur la machine de dev. À l'intérieur du réseau compose, les
+# services se joignent par leur nom sur les ports standard (postgres:5432, ...).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: pi
+      POSTGRES_PASSWORD: pi_dev_only
+      POSTGRES_DB: psychologue_intelligent
+    ports:
+      - "55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./ops/postgres-init.d:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pi -d psychologue_intelligent"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    environment:
+      RABBITMQ_DEFAULT_USER: pi
+      RABBITMQ_DEFAULT_PASS: pi_dev_only
+    ports:
+      - "55672:5672"
+      - "15673:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # Profil "observability" : non démarré par `docker compose up` par défaut.
+  # L'API tolère un collector injoignable (BatchSpanProcessor), donc rien ne
+  # dépend de ce service. `docker compose --profile observability up` l'active.
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.116.0
+    platform: linux/amd64
+    profiles: ["observability"]
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./ops/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+
+  mailpit:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "11025:1025"   # SMTP
+      - "18025:8025"   # UI
+    environment:
+      MP_MAX_MESSAGES: "500"
+
+  api:
+    build:
+      context: ./server
+    # RabbitMQ n'a pas encore de consommateur (Phase 5) : l'API n'en dépend pas
+    # au démarrage. La dépendance sera ajoutée quand un worker existera.
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      PI_ENV: development
+      # L'application : rôle à moindre privilège, soumis à la RLS (ADR-008).
+      PI_DATABASE_URL: postgresql+asyncpg://pi_app:pi_app_dev_only@postgres:5432/psychologue_intelligent
+      # Les migrations : rôle propriétaire.
+      PI_DATABASE_URL_SYNC: postgresql+psycopg://pi:pi_dev_only@postgres:5432/psychologue_intelligent
+      PI_REDIS_URL: redis://redis:6379/0
+      PI_RABBITMQ_URL: amqp://pi:pi_dev_only@rabbitmq:5672/
+      PI_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      # Passe à "true" quand le profil `observability` (otel-collector) tourne.
+      PI_OTEL_ENABLED: "false"
+      PI_JWT_SIGNING_KEY: dev-only-not-a-real-secret-change-me
+      PI_SMTP_HOST: mailpit
+      PI_SMTP_PORT: "1025"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./server:/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+volumes:
+  pgdata:
