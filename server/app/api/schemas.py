@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field, SecretStr
 
 
@@ -31,3 +33,53 @@ class MeResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     status: str
+
+
+# --- Phase 3 : plateforme utilisateur ---
+
+ConsentPurpose = Literal["CARE", "LEARNING", "AI_EXTERNAL", "VOICE", "ANALYTICS", "RESEARCH"]
+
+
+class MfaEnrollResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class MfaActivateRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=10)
+
+
+class ConsentRequest(BaseModel):
+    purpose: ConsentPurpose
+
+
+class ConsentItem(BaseModel):
+    purpose: str
+    version: str
+    granted_at: str
+    revoked_at: str | None
+    active: bool
+
+
+class ProfileResponse(BaseModel):
+    display_name: str
+    about_me: str
+    language: str
+    onboarding_completed_at: str | None
+
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: str = Field(max_length=100)
+    about_me: str = Field(default="", max_length=2000)
+    language: Literal["fr", "en"] = "fr"
+
+
+class PreferencesResponse(BaseModel):
+    tone: Literal["warm", "neutral", "direct"]
+    response_length: Literal["short", "medium", "detailed"]
+    question_frequency: Literal["low", "medium", "high"]
+    directiveness: Literal["reflective", "balanced", "directive"]
+
+
+class PreferencesUpdateRequest(PreferencesResponse):
+    pass

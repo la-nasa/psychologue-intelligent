@@ -15,9 +15,12 @@ import uuid
 from sqlalchemy import select
 
 from app.core.config import get_settings
+from app.core.crypto import encrypt
 from app.core.db import system_session
-from app.core.security import hash_password
+from app.core.security import hash_password, new_totp_secret
 from app.infrastructure.models import Organization, Role, User, UserRole
+
+_MFA_REQUIRED = {"ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR"}
 
 
 async def _run(args: argparse.Namespace) -> None:
@@ -50,6 +53,16 @@ async def _run(args: argparse.Namespace) -> None:
         else:
             print(f"user {email} already exists ({user.id})")
 
+        # Les rôles cliniques ne peuvent pas se connecter sans MFA active, et ne
+        # peuvent pas s'enrôler sans jeton (chicken-and-egg). Le bootstrap pose donc
+        # un premier secret et l'active ; le secret est imprimé UNE fois pour
+        # configuration dans une application d'authentification, jamais stocké en clair.
+        if args.role in _MFA_REQUIRED and not user.mfa_enabled:
+            secret = new_totp_secret()
+            user.mfa_secret_enc = encrypt(secret)
+            user.mfa_enabled = True
+            print(f"MFA activated. TOTP secret (configure once, then discard): {secret}")
+
         role = (await session.execute(select(Role).where(Role.code == args.role))).scalar_one()
         exists = (
             await session.execute(
@@ -69,7 +82,10 @@ def main() -> None:
     parser.add_argument("--org-name", required=True)
     parser.add_argument("--email", required=True)
     parser.add_argument("--password", required=True)
-    parser.add_argument("--role", default="ADMIN", choices=["ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST"])
+    parser.add_argument(
+        "--role", default="ADMIN",
+        choices=["ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR"],
+    )
     asyncio.run(_run(parser.parse_args()))
 
 

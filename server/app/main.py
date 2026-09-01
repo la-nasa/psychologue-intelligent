@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import auth, health
+from app.api import account, auth, conversation, health
 from app.core.config import get_settings
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging, get_logger
@@ -78,9 +78,25 @@ def create_app() -> FastAPI:
         )
         return response
 
+    # Chargées une fois au démarrage : une politique invalide ou non approuvée
+    # (hors development) fait échouer le boot, jamais une requête (ADR-002/004).
+    from app.ai.providers.external import ExternalLLMProvider
+    from app.ai.providers.keyword_risk import KeywordRiskModel
+    from app.ai.providers.local import LocalSupportiveResponder
+    from app.ai.routing.model_router import Providers
+    from app.application.notifications import LogNotificationProvider
+    from app.application.safety import load_safety_config
+
+    app.state.safety = load_safety_config(settings)
+    app.state.risk_model = KeywordRiskModel()
+    app.state.notification_provider = LogNotificationProvider()
+    app.state.providers = Providers(local=LocalSupportiveResponder(), external=ExternalLLMProvider())
+
     install_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)
+    app.include_router(account.router)
+    app.include_router(conversation.router)
 
     if settings.otel_enabled and settings.env != "testing":
         instrument_app(app)

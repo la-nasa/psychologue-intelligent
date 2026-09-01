@@ -3,9 +3,18 @@ from __future__ import annotations
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import CurrentPrincipal, RequestId
-from app.api.schemas import LoginRequest, MeResponse, RegisterRequest, StatusResponse, TokenResponse
-from app.application import auth_service
+from app.api.schemas import (
+    LoginRequest,
+    MeResponse,
+    MfaActivateRequest,
+    MfaEnrollResponse,
+    RegisterRequest,
+    StatusResponse,
+    TokenResponse,
+)
+from app.application import auth_service, mfa
 from app.core.config import get_settings
+from app.core.db import tenant_session
 from app.core.errors import ConflictError, RateLimitedError
 from app.core.redis import rate_limit_allow
 
@@ -58,3 +67,22 @@ async def me(principal: CurrentPrincipal) -> MeResponse:
         organization_id=str(principal.organization_id),
         roles=sorted(principal.roles),
     )
+
+
+@router.post("/auth/mfa/enroll", response_model=MfaEnrollResponse, status_code=status.HTTP_201_CREATED)
+async def mfa_enroll(principal: CurrentPrincipal, request_id: RequestId) -> MfaEnrollResponse:
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        result = await mfa.enroll(
+            session, organization_id=principal.organization_id, user_id=principal.user_id, request_id=request_id
+        )
+    return MfaEnrollResponse(**result)
+
+
+@router.post("/auth/mfa/activate", status_code=status.HTTP_204_NO_CONTENT)
+async def mfa_activate(body: MfaActivateRequest, principal: CurrentPrincipal, request_id: RequestId) -> Response:
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        await mfa.activate(
+            session, organization_id=principal.organization_id, user_id=principal.user_id,
+            code=body.code, request_id=request_id,
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,0 +1,23 @@
+{
+  "version": "crisis-policy-1",
+  "country": "unset",
+  "environment": "development",
+  "alert_thresholds": {
+    "red_score": 0.85,
+    "orange_score": 0.45,
+    "orange_confidence_floor": 0.65
+  },
+  "response_sla_minutes": {
+    "RED": 30,
+    "ORANGE": 240
+  },
+  "human_review_required": {
+    "RED": true,
+    "ORANGE": true,
+    "GREEN": false
+  },
+  "notification_channels": [],
+  "emergency_contacts": [],
+  "approved_by": null,
+  "approved_at": null
+}

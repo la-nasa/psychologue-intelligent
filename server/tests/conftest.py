@@ -44,7 +44,11 @@ async def _clean_state() -> AsyncIterator[None]:
     async with system_session() as session:
         await session.execute(
             text(
-                "TRUNCATE audit_logs, user_roles, sessions, users, clinics, organizations RESTART IDENTITY CASCADE"
+                "TRUNCATE conversation_state, messages, conversations, "
+                "notifications, alert_actions, alerts, crisis_events, risk_assessments, "
+                "deletion_requests, communication_preferences, profiles, consents, "
+                "audit_logs, user_roles, sessions, users, clinics, organizations "
+                "RESTART IDENTITY CASCADE"
             )
         )
     # Le rate limiter est distribué (Redis) et partagé : sans ça, les registres

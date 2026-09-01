@@ -77,7 +77,7 @@ def install_exception_handlers(app: Any) -> None:
         fields = [".".join(str(p) for p in err["loc"]) for err in exc.errors()]
         return _problem(
             request,
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             code="validation_error",
             title="request validation failed",
             extra={"fields": fields},

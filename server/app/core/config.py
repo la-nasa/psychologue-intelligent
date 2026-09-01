@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
@@ -47,8 +48,19 @@ class Settings(BaseSettings):
     smtp_host: str = "localhost"
     smtp_port: int = 1025
 
+    # Politiques cliniques versionnées (ADR-002/004). Copie v2 sous server/config/
+    # pendant la migration ; cible = table `crisis_policies` (data-model-v2 §4).
+    policy_dir: Path = Path("config/policies")
+    crisis_policy_file: str = "crisis-policy-v1.json"
+    crisis_rules_file: str = "crisis-rules-v1.json"
+    response_templates_file: str = "response-templates-v1.json"
+
+    # Chemin DEEP (ADR-007). Vide => chemin externe désactivé, dégradation locale.
     llm_external_provider: str = ""
     llm_external_api_key: str = ""
+    llm_external_model: str = "claude-haiku-4-5"
+    llm_external_base_url: str = ""
+    llm_max_reply_tokens: int = 160
 
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
