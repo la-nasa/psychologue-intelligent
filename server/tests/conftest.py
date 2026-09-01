@@ -42,7 +42,7 @@ _CLEAN_ORDER = (
     "goal_progress", "goals",
     "memories", "longitudinal_snapshots",
     "conversation_state", "messages", "conversations",
-    "notifications", "alert_actions", "alerts", "crisis_events", "risk_assessments",
+    "notifications", "notification_channels", "alert_actions", "alerts", "crisis_events", "risk_assessments",
     "assessment_reminders", "phq9_assessments",
     "deletion_requests", "communication_preferences", "profiles", "consents",
     "audit_logs", "user_roles", "sessions", "users", "clinics", "organizations",

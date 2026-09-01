@@ -553,6 +553,28 @@ class ConversationState(Base):
     )
 
 
+class NotificationChannel(Base):
+    """Canal de notification **par organisation** (data-model-v2 §4). Chaque
+    établissement configure ses propres destinataires. `config_enc` chiffre la
+    cible (adresse e-mail, numéro, jeton push)."""
+
+    __tablename__ = "notification_channels"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(60), nullable=False)
+    kind: Mapped[str] = mapped_column(String(12), nullable=False)
+    target_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    is_active: Mapped[bool] = mapped_column(nullable=False, server_default=text("true"))
+    created_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("kind IN ('email','sms','push','log')", name="ck_channel_kind"),
+        UniqueConstraint("organization_id", "name", name="uq_channel_org_name"),
+        Index("ix_channels_org_active", "organization_id", "is_active"),
+    )
+
+
 class Notification(Base):
     __tablename__ = "notifications"
 
@@ -560,6 +582,8 @@ class Notification(Base):
     organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     alert_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("alerts.id"), nullable=False)
     channel: Mapped[str] = mapped_column(String(40), nullable=False)
+    channel_kind: Mapped[str] = mapped_column(String(12), nullable=False, server_default="log")
+    target_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     template_version: Mapped[str] = mapped_column(String(40), nullable=False)
     delivery_status: Mapped[str] = mapped_column(String(24), nullable=False)
     provider_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)

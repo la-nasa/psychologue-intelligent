@@ -20,6 +20,7 @@ dependencies = [
     "pgvector==0.4.1",                 # mémoire sémantique (data-model-v2 §5)
     "redis==8.1.0",
     "aio-pika==10.0.1",
+    "aiosmtplib==5.1.2",             # 4.0.2 : PYSEC-2026-2338 + CVE-2026-55558
     "python-multipart==0.0.32",
     "argon2-cffi==25.1.0",            # remplace PBKDF2 de la v1 (ADR-006 / threat-model-v2 TH-01)
     "cryptography==50.0.1",           # chiffrement applicatif par champ (data-model-v2 §1)

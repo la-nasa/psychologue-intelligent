@@ -15,12 +15,17 @@ import datetime as dt
 import logging
 import uuid
 from dataclasses import dataclass
+from email.message import EmailMessage
 from typing import Protocol
 
+import aiosmtplib
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import audit
+from app.application.channels import ResolvedChannel
+from app.core.config import get_settings
+from app.core.crypto import decrypt, encrypt
 from app.infrastructure.models import Alert, Notification
 
 LOGGER = logging.getLogger("pi.notifications")
@@ -31,17 +36,52 @@ BACKOFF_CAP_SECONDS = 21_600  # 6 h
 
 
 class NotificationProvider(Protocol):
-    async def send(self, channel: str, target: str, payload: dict) -> str: ...
+    async def send(self, kind: str, target: str, payload: dict) -> str: ...
 
 
 class LogNotificationProvider:
-    """Développement uniquement : ne contacte jamais un canal réel, prouve seulement
-    le contrat de livraison (idempotence, retry, audit) de bout en bout. Un vrai
-    fournisseur Email/SMS/Push doit le remplacer avant tout pilote."""
+    """Prouve le contrat de livraison (idempotence, retry, audit) sans contacter
+    de canal réel. Utilisé pour `kind='log'`, et pour `sms`/`push` non encore
+    implémentés — un vrai fournisseur devra les remplacer avant tout pilote."""
 
-    async def send(self, channel: str, target: str, payload: dict) -> str:
-        LOGGER.info("dev notification channel=%s alert_id=%s", channel, payload.get("alert_id"))
+    async def send(self, kind: str, target: str, payload: dict) -> str:
+        LOGGER.info("dev notification kind=%s alert_id=%s", kind, payload.get("alert_id"))
         return f"dev-ref-{uuid.uuid4()}"
+
+
+class EmailNotificationProvider:
+    """SMTP. Le corps est **volontairement dénué de contenu clinique** (TH-03) :
+    niveau d'alerte, identifiant, et une consigne de consulter le tableau de bord.
+    Jamais le nom du patient, le texte du message, ni un score."""
+
+    async def send(self, kind: str, target: str, payload: dict) -> str:
+        settings = get_settings()
+        message = EmailMessage()
+        message["From"] = settings.smtp_from
+        message["To"] = target
+        message["Subject"] = f"[Psychologue Intelligent] Alerte {payload.get('level', '?')} à examiner"
+        message.set_content(
+            "Une alerte de niveau "
+            f"{payload.get('level', '?')} requiert une prise en charge.\n\n"
+            f"Identifiant : {payload.get('alert_id')}\n"
+            "Connectez-vous au tableau de bord clinicien pour la consulter.\n\n"
+            "Ce message ne contient volontairement aucune donnée de santé."
+        )
+        await aiosmtplib.send(message, hostname=settings.smtp_host, port=settings.smtp_port, timeout=10)
+        return f"smtp:{target}"
+
+
+class CompositeNotificationProvider:
+    """Aiguille selon le type de canal. `email` -> SMTP réel ; le reste -> log."""
+
+    def __init__(self) -> None:
+        self._email = EmailNotificationProvider()
+        self._log = LogNotificationProvider()
+
+    async def send(self, kind: str, target: str, payload: dict) -> str:
+        if kind == "email":
+            return await self._email.send(kind, target, payload)
+        return await self._log.send(kind, target, payload)
 
 
 @dataclass(frozen=True)
@@ -65,7 +105,7 @@ async def notify_alert(
     session: AsyncSession,
     *,
     alert: Alert,
-    channels: tuple[str, ...],
+    channels: tuple[ResolvedChannel, ...],
     provider: NotificationProvider,
     request_id: str,
 ) -> list[NotificationOutcome]:
@@ -95,16 +135,17 @@ async def _skip_no_channel(session: AsyncSession, alert: Alert) -> NotificationO
 
 
 async def _notify_one(
-    session: AsyncSession, alert: Alert, channel: str, provider: NotificationProvider, request_id: str
+    session: AsyncSession, alert: Alert, channel: ResolvedChannel, provider: NotificationProvider, request_id: str
 ) -> NotificationOutcome:
-    key = f"{alert.id}:{channel}:{TEMPLATE_VERSION}"
+    key = f"{alert.id}:{channel.name}:{TEMPLATE_VERSION}"
     existing = (await session.execute(select(Notification).where(Notification.idempotency_key == key))).scalar_one_or_none()
     if existing is not None and existing.delivery_status == "SENT":
-        return NotificationOutcome(channel, "SENT", existing.provider_ref)
+        return NotificationOutcome(channel.name, "SENT", existing.provider_ref)
 
     if existing is None:
         notif = Notification(
-            id=uuid.uuid4(), organization_id=alert.organization_id, alert_id=alert.id, channel=channel,
+            id=uuid.uuid4(), organization_id=alert.organization_id, alert_id=alert.id, channel=channel.name,
+            channel_kind=channel.kind, target_enc=encrypt(channel.target),
             template_version=TEMPLATE_VERSION, delivery_status="PENDING", attempt_count=0, idempotency_key=key,
         )
         session.add(notif)
@@ -112,16 +153,17 @@ async def _notify_one(
     else:
         notif = existing
 
+    payload = {"alert_id": str(alert.id), "level": alert.level}
     status, provider_ref = "FAILED", None
     attempt_count = notif.attempt_count
     for _ in range(MAX_ATTEMPTS):
         attempt_count += 1
         try:
-            provider_ref = await provider.send(channel, str(alert.patient_id), {"alert_id": str(alert.id), "level": alert.level})
+            provider_ref = await provider.send(channel.kind, channel.target, payload)
             status = "SENT"
             break
         except Exception:
-            LOGGER.exception("notification attempt failed alert_id=%s channel=%s attempt=%s", alert.id, channel, attempt_count)
+            LOGGER.exception("notification attempt failed alert_id=%s channel=%s attempt=%s", alert.id, channel.name, attempt_count)
 
     now = dt.datetime.now(dt.UTC)
     notif.delivery_status = status
@@ -132,9 +174,10 @@ async def _notify_one(
     await session.flush()
     await audit.record(
         session, request_id=request_id, action=f"notification.{status.lower()}", resource_type="alert",
-        resource_id=str(alert.id), organization_id=alert.organization_id, outcome="SUCCESS", metadata={"channel": channel},
+        resource_id=str(alert.id), organization_id=alert.organization_id, outcome="SUCCESS",
+        metadata={"channel": channel.name, "kind": channel.kind},
     )
-    return NotificationOutcome(channel, status, provider_ref)
+    return NotificationOutcome(channel.name, status, provider_ref)
 
 
 async def retry_pending_notifications(
@@ -168,8 +211,9 @@ async def _retry_one(
 ) -> NotificationOutcome:
     attempt_count = notif.attempt_count + 1
     status, provider_ref = "FAILED", None
+    target = decrypt(notif.target_enc) or notif.channel
     try:
-        provider_ref = await provider.send(notif.channel, str(alert.patient_id), {"alert_id": str(alert.id), "level": alert.level})
+        provider_ref = await provider.send(notif.channel_kind, target, {"alert_id": str(alert.id), "level": alert.level})
         status = "SENT"
     except Exception:
         LOGGER.exception("notification retry failed alert_id=%s channel=%s attempt=%s", alert.id, notif.channel, attempt_count)

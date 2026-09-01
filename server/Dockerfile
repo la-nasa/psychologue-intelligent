@@ -3,23 +3,26 @@ FROM python:3.12-slim AS base
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONPATH=/app \
-    PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
 WORKDIR /app
 
-# Dépendances d'abord (cache de couche) — pyproject seul
+# Dépendances d'abord (cache de couche) — pyproject seul. Le cache pip est monté
+# en cache BuildKit : les téléchargements survivent aux rebuilds et reprennent
+# après une coupure réseau (registre PyPI parfois instable depuis ce runner).
 COPY pyproject.toml ./
-RUN pip install --upgrade pip setuptools wheel \
-    && pip install -e ".[dev]" \
-    && pip uninstall -y types-PyJWT 2>/dev/null || true   # PyJWT 2.x est typé nativement
+RUN --mount=type=cache,target=/root/.cache/pip pip install --upgrade pip setuptools wheel
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e ".[dev]"
+# PyJWT 2.x est typé nativement — retirer un éventuel stub obsolète (ne doit pas
+# faire échouer le build s'il est absent).
+RUN pip uninstall -y types-PyJWT || true
 
 COPY . .
 
 # Re-résout le finder editable maintenant que le code est présent (le layer
 # ci-dessus l'a installé sans package sur disque). PYTHONPATH=/app couvre le
 # cas du montage de volume en développement.
-RUN pip install -e ".[dev]" --no-deps
+RUN --mount=type=cache,target=/root/.cache/pip pip install -e ".[dev]" --no-deps
 
 # Utilisateur non-root
 RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app

@@ -123,3 +123,20 @@ class Phq9SubmitResponse(BaseModel):
 
 class ReminderRequest(BaseModel):
     due_at: datetime
+
+
+# --- Phase 10 : canaux de notification (admin) ---
+
+
+class ChannelCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    kind: Literal["email", "sms", "push", "log"]
+    target: str = Field(min_length=1, max_length=200)
+
+
+class ChannelItem(BaseModel):
+    id: str
+    name: str
+    kind: str
+    is_active: bool
+    target_hint: str

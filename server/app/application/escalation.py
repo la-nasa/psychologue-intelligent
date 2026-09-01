@@ -11,6 +11,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.alerts import mark_notified, open_alert, open_alert_from_decision
+from app.application.channels import resolve as resolve_channels
 from app.application.notifications import NotificationOutcome, NotificationProvider, notify_alert
 from app.domain.safety.crisis import CrisisDecision
 from app.domain.safety.policy import CrisisPolicy
@@ -19,8 +20,21 @@ ALERT_LEVELS = ("ORANGE", "RED")
 
 
 async def _notify_and_mark(
-    session: AsyncSession, alert, channels: tuple[str, ...], provider: NotificationProvider, request_id: str
+    session: AsyncSession, alert, policy: CrisisPolicy, provider: NotificationProvider, request_id: str
 ) -> tuple[NotificationOutcome, ...]:
+    # Événement de domaine (best-effort, jamais bloquant — analytics + futur
+    # traitement piloté par événements ; l'alerte est déjà persistée et notifiée).
+    from app.infrastructure import mq
+
+    await mq.publish_event(
+        f"alert.created.{alert.level.lower()}",
+        {"alert_id": str(alert.id), "organization_id": str(alert.organization_id),
+         "level": alert.level, "source": alert.source},
+    )
+
+    channels = await resolve_channels(
+        session, organization_id=alert.organization_id, policy_channels=policy.notification_channels
+    )
     outcomes = tuple(
         await notify_alert(session, alert=alert, channels=channels, provider=provider, request_id=request_id)
     )
@@ -59,7 +73,7 @@ async def escalate(
     outcomes: tuple[NotificationOutcome, ...] = ()
     if created:
         outcomes = await _notify_and_mark(
-            session, alert, policy.notification_channels, notification_provider, request_id
+            session, alert, policy, notification_provider, request_id
         )
     return alert.id, created, outcomes
 
@@ -101,6 +115,6 @@ async def escalate_assessment(
     outcomes: tuple[NotificationOutcome, ...] = ()
     if created:
         outcomes = await _notify_and_mark(
-            session, alert, policy.notification_channels, notification_provider, request_id
+            session, alert, policy, notification_provider, request_id
         )
     return alert.id, created, outcomes

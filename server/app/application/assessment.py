@@ -165,6 +165,7 @@ async def schedule_reminder(
             instrument="PHQ-9", due_at=due_at, status="PENDING",
         )
     )
+    await session.flush()
     await audit.record(
         session, request_id=request_id, action="assessment.reminder.schedule", resource_type="assessment_reminder",
         resource_id=str(reminder_id), organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",

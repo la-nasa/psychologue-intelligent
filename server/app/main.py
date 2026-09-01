@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import account, assessment, auth, conversation, goals, health
+from app.api import account, admin, assessment, auth, conversation, goals, health
 from app.core.config import get_settings
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging, get_logger
@@ -84,12 +84,12 @@ def create_app() -> FastAPI:
     from app.ai.providers.lexicon_risk import LexiconRiskModel
     from app.ai.providers.local import LocalSupportiveResponder
     from app.ai.routing.model_router import Providers
-    from app.application.notifications import LogNotificationProvider
+    from app.application.notifications import CompositeNotificationProvider
     from app.application.safety import load_safety_config
 
     app.state.safety = load_safety_config(settings)
     app.state.risk_model = LexiconRiskModel()
-    app.state.notification_provider = LogNotificationProvider()
+    app.state.notification_provider = CompositeNotificationProvider()
     app.state.providers = Providers(local=LocalSupportiveResponder(), external=ExternalLLMProvider())
 
     install_exception_handlers(app)
@@ -99,6 +99,7 @@ def create_app() -> FastAPI:
     app.include_router(conversation.router)
     app.include_router(goals.router)
     app.include_router(assessment.router)
+    app.include_router(admin.router)
 
     if settings.otel_enabled and settings.env != "testing":
         instrument_app(app)

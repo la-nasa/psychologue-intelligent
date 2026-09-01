@@ -31,6 +31,9 @@ jobs:
         ports: ["6379:6379"]
         options: >-
           --health-cmd "redis-cli ping" --health-interval 3s --health-timeout 3s --health-retries 20
+      mailpit:
+        image: axllent/mailpit:v1.21
+        ports: ["1025:1025", "8025:8025"]
 
     env:
       PI_ENV: testing
@@ -40,6 +43,8 @@ jobs:
       PI_REDIS_URL: redis://localhost:6379/0
       PI_OTEL_ENABLED: "false"
       PI_JWT_SIGNING_KEY: ci-only-not-a-real-secret
+      PI_SMTP_HOST: localhost
+      PI_SMTP_PORT: "1025"
 
     steps:
       - uses: actions/checkout@v4

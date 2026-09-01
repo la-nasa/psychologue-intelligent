@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     redis_url: str = "redis://localhost:6379/0"
     rabbitmq_url: str = "amqp://pi:pi_dev_only@localhost:5672/"
+    mq_enabled: bool = True
 
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
     otel_service_name: str = "pi-api"
@@ -47,6 +48,7 @@ class Settings(BaseSettings):
 
     smtp_host: str = "localhost"
     smtp_port: int = 1025
+    smtp_from: str = "alerts@psychologue-intelligent.local"
 
     # Politiques cliniques versionnées (ADR-002/004). Copie v2 sous server/config/
     # pendant la migration ; cible = table `crisis_policies` (data-model-v2 §4).
@@ -81,6 +83,7 @@ def get_settings() -> Settings:
                 "rate_limit_register_per_hour": 100,
                 "rate_limit_login_per_15min": 50,
                 "rate_limit_phq9_per_hour": 6,
+                "mq_enabled": False,  # pas de broker dans la suite de tests
             }
         )
     return settings
