@@ -32,11 +32,17 @@ async def open_alert(
     *,
     organization_id: uuid.UUID,
     patient_id: uuid.UUID,
-    crisis_event_id: uuid.UUID,
-    decision: CrisisDecision,
     idempotency_key: str,
+    level: str,
+    score: float,
+    policy_version: str,
+    source: str = "MESSAGE",
+    crisis_event_id: uuid.UUID | None = None,
+    assessment_id: uuid.UUID | None = None,
     sla_due_at: dt.datetime | None = None,
 ) -> tuple[Alert, bool]:
+    """Une alerte peut provenir d'un message (`crisis_event_id`) OU d'une
+    auto-évaluation (`assessment_id`) — jamais des deux ni d'aucun (CHECK en base)."""
     existing = (
         await session.execute(select(Alert).where(Alert.idempotency_key == idempotency_key))
     ).scalar_one_or_none()
@@ -47,17 +53,43 @@ async def open_alert(
         id=uuid.uuid4(),
         organization_id=organization_id,
         patient_id=patient_id,
+        source=source,
         crisis_event_id=crisis_event_id,
-        level=decision.level,
+        assessment_id=assessment_id,
+        level=level,
         status="OPEN",
         idempotency_key=idempotency_key,
-        score=decision.score,
-        policy_version=decision.policy_version,
+        score=score,
+        policy_version=policy_version,
         sla_due_at=sla_due_at,
     )
     session.add(alert)
     await session.flush()
     return alert, True
+
+
+async def open_alert_from_decision(
+    session: AsyncSession,
+    *,
+    organization_id: uuid.UUID,
+    patient_id: uuid.UUID,
+    crisis_event_id: uuid.UUID,
+    decision: CrisisDecision,
+    idempotency_key: str,
+    sla_due_at: dt.datetime | None = None,
+) -> tuple[Alert, bool]:
+    return await open_alert(
+        session,
+        organization_id=organization_id,
+        patient_id=patient_id,
+        idempotency_key=idempotency_key,
+        level=decision.level,
+        score=decision.score,
+        policy_version=decision.policy_version,
+        source="MESSAGE",
+        crisis_event_id=crisis_event_id,
+        sla_due_at=sla_due_at,
+    )
 
 
 async def transition_alert(

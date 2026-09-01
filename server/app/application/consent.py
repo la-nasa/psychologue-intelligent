@@ -86,6 +86,14 @@ async def revoke(
         resource_id=purpose, organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",
         metadata={"purpose": purpose, "revoked_count": len(rows)},
     )
+    # Cascade sur la mémoire (threat-model-v2 TV-05) : une mémoire dont le
+    # consentement est retiré ne doit plus jamais être réinjectée. Import différé
+    # pour éviter un cycle consent <-> memory.
+    from app.application import memory
+
+    await memory.forget_for_consent(
+        session, organization_id=organization_id, user_id=user_id, purpose=purpose, request_id=request_id
+    )
 
 
 async def has_active_consent(session: AsyncSession, user_id: uuid.UUID, purpose: str) -> bool:

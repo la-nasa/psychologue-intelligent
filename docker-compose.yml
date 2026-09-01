@@ -3,9 +3,11 @@
 # Aucun secret réel ici : voir .env.example. La v1 (backend/, frontend/) n'utilise
 # pas ce fichier et reste exécutable indépendamment.
 #
-# Les ports hôte sont volontairement décalés (5xxxx) pour cohabiter avec d'autres
-# stacks Docker sur la machine de dev. À l'intérieur du réseau compose, les
-# services se joignent par leur nom sur les ports standard (postgres:5432, ...).
+# Ports hôte choisis pour éviter (a) les autres stacks Docker de la machine et
+# (b) les plages réservées par Windows (`netsh int ipv4 show excludedportrange` :
+# 54969-55468 ici). À l'intérieur du réseau compose les services se joignent par
+# leur nom sur les ports standard ; `docker compose run` n'a pas besoin des ports
+# hôte — ils ne servent qu'à se connecter depuis Windows.
 
 services:
   postgres:
@@ -15,7 +17,7 @@ services:
       POSTGRES_PASSWORD: pi_dev_only
       POSTGRES_DB: psychologue_intelligent
     ports:
-      - "55432:5432"
+      - "55500:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./ops/postgres-init.d:/docker-entrypoint-initdb.d:ro
@@ -43,7 +45,7 @@ services:
       RABBITMQ_DEFAULT_PASS: pi_dev_only
     ports:
       - "55672:5672"
-      - "15673:15672"
+      - "55673:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 5s

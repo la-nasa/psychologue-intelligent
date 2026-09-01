@@ -55,7 +55,11 @@ STATUS : **PASS** — `docker compose` + `pytest` verts, invariants testés.
 | `ruff` / `mypy` / `bandit` / `pip-audit` | propres |
 | `alembic downgrade base && upgrade head` | réversible (0001→0004) |
 
-Dette : la suite atteint **3 min 30** (110 tests, NullPool, Argon2, `TRUNCATE` par test). À traiter avant la Phase 5 (boucle d'événements de session + pool, ou parallélisme `pytest-xdist` avec base par worker).
+Vitesse de la suite : **~23 s** (110 tests). Optimisée après la Phase 4 :
+boucle d'événements unique pour la session (`asyncio_default_*_loop_scope = "session"`) + vrai pool de
+connexions au lieu de `NullPool` ; nettoyage inter-test par `DELETE FROM` en ordre de FK au lieu de
+`TRUNCATE ... CASCADE` (le `TRUNCATE` sur Docker Desktop coûtait ~2 s par test) ; limites de débit basses
+en environnement `testing`. Gain ~9x (3 min 30 → 23 s).
 
 ## 4. Ce qui n'est PAS fait
 

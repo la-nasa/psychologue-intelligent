@@ -107,10 +107,13 @@ async def test_message_rate_limit(client: AsyncClient, make_org) -> None:
     await make_org("acme")
     h = await _patient(client, "acme", "p@acme.example.com")
     cid = (await client.post("/api/v1/conversations", headers=h)).json()["id"]
-    codes = set()
-    for _ in range(35):
-        codes.add((await client.post(f"/api/v1/conversations/{cid}/messages", json={"text": "coucou"}, headers=h)).status_code)
-    assert 429 in codes
+    # limite = 8/min en environnement de test (voir config.get_settings)
+    codes = [
+        (await client.post(f"/api/v1/conversations/{cid}/messages", json={"text": "coucou"}, headers=h)).status_code
+        for _ in range(12)
+    ]
+    assert codes.count(201) == 8
+    assert codes[-1] == 429
 
 
 async def test_empty_message_is_rejected(client: AsyncClient, make_org) -> None:

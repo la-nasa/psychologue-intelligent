@@ -17,6 +17,7 @@ dependencies = [
     "alembic==1.19.1",
     "asyncpg==0.31.0",
     "psycopg[binary]==3.3.4",          # driver sync pour Alembic
+    "pgvector==0.4.1",                 # mémoire sémantique (data-model-v2 §5)
     "redis==8.1.0",
     "aio-pika==10.0.1",
     "python-multipart==0.0.32",
@@ -50,8 +51,15 @@ include = ["app*"]
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+# Boucle d'événements unique pour toute la session : le moteur SQLAlchemy et le
+# client Redis (globaux, créés à l'import) restent valides d'un test à l'autre,
+# ce qui permet un vrai pool de connexions au lieu de NullPool (suite ~4x plus rapide).
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 addopts = "-ra"
+markers = [
+    "ai_redteam: suite adversariale IA (master prompt §91) — `pytest -m ai_redteam`",
+]
 
 [tool.ruff]
 target-version = "py312"
@@ -75,6 +83,10 @@ warn_unused_ignores = true
 # disallow_untyped_defs sera activé en Phase 2 une fois la base stabilisée sous
 # `docker compose` ; check_untyped_defs vérifie déjà le corps des fonctions.
 exclude = ["app/alembic/versions"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*"]
+ignore_missing_imports = true
 
 [tool.coverage.run]
 source = ["app"]

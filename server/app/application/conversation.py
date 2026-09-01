@@ -28,7 +28,7 @@ from app.ai.prompt import build_messages
 from app.ai.providers.base import ProviderUnavailable
 from app.ai.routing import model_router
 from app.ai.routing.dialogue_policy import classify
-from app.application import audit, consent, profile
+from app.application import assessment, audit, consent, memory, personalization, profile
 from app.application.output_safety import check as output_safety_check
 from app.application.safety import SafetyConfig, evaluate_incoming_message
 from app.core.config import get_settings
@@ -119,17 +119,38 @@ async def _recent_messages(session: AsyncSession, conversation_id: uuid.UUID) ->
     return [{"author_type": at, "content": decrypt(enc) or ""} for at, enc in reversed(rows)]
 
 
-async def _build_context(session: AsyncSession, patient_id: uuid.UUID, conversation_id: uuid.UUID, *, one_question_only: bool) -> dict:
+async def _build_context(
+    session: AsyncSession, patient_id: uuid.UUID, conversation_id: uuid.UUID, *, query_text: str, one_question_only: bool
+) -> dict:
     # Best-effort : jamais bloquant, jamais une exception (overview-v2 §5).
-    ctx: dict = {"recent_messages": [], "one_question_only": one_question_only}
+    ctx: dict = {"recent_messages": [], "relevant_memories": [], "one_question_only": one_question_only}
     try:
         prof = await profile.get_profile(session, patient_id)
         ctx["display_name"] = prof.get("display_name") or None
         ctx["about_me"] = prof.get("about_me") or None
-        ctx["interaction_style"] = await profile.get_preferences(session, patient_id)
         ctx["recent_messages"] = await _recent_messages(session, conversation_id)
     except Exception:
-        LOGGER.exception("context build degraded")
+        LOGGER.exception("context build degraded (profile/history)")
+    try:
+        style = await personalization.resolve_style(session, patient_id)
+        ctx["interaction_style"] = style.as_context()
+        ctx["language"] = style.language
+    except Exception:
+        LOGGER.exception("context build degraded (personalization)")
+    try:
+        # Mémoire épisodique pertinente (retrieval pgvector) — jamais une mémoire
+        # révoquée / expirée / incertaine (filtré dans memory.retrieve).
+        ctx["relevant_memories"] = await memory.retrieve(
+            session, user_id=patient_id, query_text=query_text, limit=3, types=("EPISODIC", "SEMANTIC")
+        )
+    except Exception:
+        LOGGER.exception("context build degraded (memory retrieval)")
+    try:
+        # Bande de sévérité PHQ-9 qualitative — jamais le score brut (TV-02) ;
+        # ne fait qu'influencer subtilement le ton (voir ai/prompt.build_messages).
+        ctx["phq9_severity_band"] = await assessment.latest_severity_band(session, patient_id)
+    except Exception:
+        LOGGER.exception("context build degraded (phq9 band)")
     return ctx
 
 
@@ -177,13 +198,17 @@ async def stream_turn(
     decision = outcome.decision
 
     assistant_seq = seq + 1
+    style_snapshot: dict = {}
     if decision.level != "GREEN":
         reply_text, responder_version = compose_reply(decision, safety_config.templates, _RaisingLLM(), text)
         gen_path, provider_name = "TEMPLATE", None
         yield {"type": "assistant_chunk", "text": reply_text}
     else:
         plan = classify(text, recent_turns=seq - 1, decision=decision)
-        ctx = await _build_context(session, patient_id, conversation_id, one_question_only=plan.one_question_only)
+        ctx = await _build_context(
+            session, patient_id, conversation_id, query_text=text, one_question_only=plan.one_question_only
+        )
+        style_snapshot = ctx.get("interaction_style") or {}
         has_external = await consent.has_active_consent(session, patient_id, "AI_EXTERNAL")
         route = await model_router.route(
             requested_path=plan.path, has_ai_external_consent=has_external, providers=providers
@@ -193,6 +218,7 @@ async def stream_turn(
 
         fragments: list[str] = []
         cancelled = False
+        infra_failure = False
         chosen = route.provider
         try:
             async for fragment in chosen.stream(messages, max_tokens=max_tokens):
@@ -205,23 +231,39 @@ async def stream_turn(
             LOGGER.info("provider %s unavailable mid-stream; falling back to local", chosen.name)
             chosen = providers.local
             fragments = []
-            async for fragment in chosen.stream(messages, max_tokens=max_tokens):
-                fragments.append(fragment)
-                yield {"type": "assistant_chunk", "text": fragment}
-            route = model_router.Route(provider=chosen, effective_path="FAST", reason="mid_stream_fallback")
+            try:
+                async for fragment in chosen.stream(messages, max_tokens=max_tokens):
+                    fragments.append(fragment)
+                    yield {"type": "assistant_chunk", "text": fragment}
+                route = model_router.Route(provider=chosen, effective_path="FAST", reason="mid_stream_fallback")
+            except Exception:
+                LOGGER.exception("local fallback also failed")
+                infra_failure = True
+        except Exception:
+            # SAFE_FALLBACK (master prompt §30) : toute défaillance d'infrastructure
+            # de génération => message de repli neutre, jamais un 500 sans réponse,
+            # jamais une réponse partielle non vérifiée livrée telle quelle.
+            LOGGER.exception("generation failed; using safe fallback")
+            infra_failure = True
 
-        raw = "".join(fragments).strip()
-        safe = output_safety_check(raw, decision=decision, templates=safety_config.templates)
-        reply_text = safe.text
-        gen_path, provider_name = route.effective_path, chosen.name
-        marks = [route.provider.version]
-        if cancelled:
-            marks.append("interrupted")
-        if safe.replaced:
-            marks.append(f"safe_fallback:{safe.reason}")
-        responder_version = "+".join(marks)
-        if cancelled or safe.replaced:
+        if infra_failure:
+            reply_text = safety_config.templates.safe_fallback
+            responder_version = "safe_fallback:generation_error"
+            gen_path, provider_name = route.effective_path, chosen.name
             yield {"type": "assistant_correction", "text": reply_text}
+        else:
+            raw = "".join(fragments).strip()
+            safe = output_safety_check(raw, decision=decision, templates=safety_config.templates)
+            reply_text = safe.text
+            gen_path, provider_name = route.effective_path, chosen.name
+            marks = [route.provider.version]
+            if cancelled:
+                marks.append("interrupted")
+            if safe.replaced:
+                marks.append(f"safe_fallback:{safe.reason}")
+            responder_version = "+".join(marks)
+            if cancelled or safe.replaced:
+                yield {"type": "assistant_correction", "text": reply_text}
 
     assistant_msg_id = uuid.uuid4()
     session.add(
@@ -234,10 +276,12 @@ async def stream_turn(
     )
     now = dt.datetime.now(dt.UTC)
     await session.execute(update(Conversation).where(Conversation.id == conversation_id).values(updated_at=now))
+    state_values: dict = {"risk_state": decision.level, "stage": _stage_for(decision.level), "updated_at": now}
+    if style_snapshot:
+        state_values["interaction_style_json"] = style_snapshot
+        state_values["language"] = style_snapshot.get("language", "fr")
     await session.execute(
-        update(ConversationState)
-        .where(ConversationState.conversation_id == conversation_id)
-        .values(risk_state=decision.level, stage=_stage_for(decision.level), updated_at=now)
+        update(ConversationState).where(ConversationState.conversation_id == conversation_id).values(**state_values)
     )
     await session.flush()
     await audit.record(
@@ -245,6 +289,21 @@ async def stream_turn(
         resource_id=str(conversation_id), organization_id=organization_id, actor_id=patient_id, outcome="SUCCESS",
         metadata={"level": decision.level, "path": gen_path, "provider": provider_name or "template"},
     )
+
+    # Mémoire épisodique : les mots du patient, provenance USER_DECLARED (il l'a dit),
+    # jamais une inférence. GREEN uniquement — on n'archive pas un message de crise
+    # pour le réinjecter plus tard (décision de périmètre, revue clinique = Phase 14).
+    # Best-effort : un échec de mémoire ne casse jamais la conversation.
+    if decision.level == "GREEN":
+        try:
+            await memory.remember(
+                session, organization_id=organization_id, user_id=patient_id, content=text,
+                type="EPISODIC", provenance="USER_DECLARED", consent_scope="CARE",
+                source_conversation_id=conversation_id, source_message_id=patient_msg_id, request_id=request_id,
+            )
+        except Exception:
+            LOGGER.exception("episodic memory write failed")
+
     yield {
         "type": "assistant_message",
         "id": str(assistant_msg_id),

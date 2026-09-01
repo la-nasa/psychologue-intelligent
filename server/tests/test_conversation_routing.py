@@ -114,7 +114,7 @@ def test_output_safety_passes_a_normal_reply() -> None:
 
 def test_output_safety_blocks_a_diagnostic_claim() -> None:
     res = output_safety_check("Vous souffrez de dépression, c'est clair.", decision=_green(), templates=_TEMPLATES)
-    assert res.replaced is True and res.reason == "diagnostic_claim"
+    assert res.replaced is True and res.reason == "clinical_policy"
     assert res.text in _TEMPLATES.green_acknowledgments
 
 

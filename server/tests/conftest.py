@@ -34,28 +34,35 @@ def _migrated_db() -> Iterator[None]:
     yield
 
 
+# Ordre enfant -> parent (respecte les FK). `DELETE` plutôt que `TRUNCATE` :
+# sur des tables quasi vides c'est bien plus rapide (pas de verrou exclusif, pas
+# de réécriture de fichier, pas de fsync) — la suite passe de ~2s30 à ~5ms par
+# test sur ce nettoyage. Aucune séquence à réinitialiser (toutes les PK sont des UUID).
+_CLEAN_ORDER = (
+    "goal_progress", "goals",
+    "memories", "longitudinal_snapshots",
+    "conversation_state", "messages", "conversations",
+    "notifications", "alert_actions", "alerts", "crisis_events", "risk_assessments",
+    "assessment_reminders", "phq9_assessments",
+    "deletion_requests", "communication_preferences", "profiles", "consents",
+    "audit_logs", "user_roles", "sessions", "users", "clinics", "organizations",
+)
+
+
 @pytest_asyncio.fixture(autouse=True)
 async def _clean_state() -> AsyncIterator[None]:
     from app.core.db import system_session
     from app.core.redis import get_redis
 
     # Nettoyage AVANT chaque test => état déterministe même après un run local
-    # interrompu. Les tables globales (roles/permissions) ne sont jamais purgées.
+    # interrompu. Les tables globales (roles/permissions/consent_versions) sont préservées.
     async with system_session() as session:
-        await session.execute(
-            text(
-                "TRUNCATE conversation_state, messages, conversations, "
-                "notifications, alert_actions, alerts, crisis_events, risk_assessments, "
-                "deletion_requests, communication_preferences, profiles, consents, "
-                "audit_logs, user_roles, sessions, users, clinics, organizations "
-                "RESTART IDENTITY CASCADE"
-            )
-        )
+        for table in _CLEAN_ORDER:
+            await session.execute(text(f"DELETE FROM {table}"))  # noqa: S608 — noms de tables constants
     # Le rate limiter est distribué (Redis) et partagé : sans ça, les registres
-    # de tentatives d'un test épuisent le quota du suivant (429).
-    r = get_redis()
-    await r.flushdb()
-    await r.aclose()
+    # de tentatives d'un test épuisent le quota du suivant. Le client est mis en
+    # cache pour toute la session (boucle unique) : ne pas le fermer ici.
+    await get_redis().flushdb()
     yield
 
 

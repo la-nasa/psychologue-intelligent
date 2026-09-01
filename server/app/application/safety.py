@@ -11,7 +11,6 @@ séparément par le moteur de conversation (Phase 4).
 """
 from __future__ import annotations
 
-import datetime as dt
 import logging
 import uuid
 from dataclasses import dataclass
@@ -19,8 +18,8 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.alerts import open_alert
-from app.application.notifications import NotificationProvider, notify_alert
+from app.application.escalation import escalate
+from app.application.notifications import NotificationProvider
 from app.core.config import Settings
 from app.domain.safety.crisis import CrisisDecision, CrisisDetector, RiskModel
 from app.domain.safety.policy import (
@@ -34,7 +33,6 @@ from app.domain.safety.policy import (
 from app.infrastructure.models import CrisisEvent, RiskAssessment
 
 LOGGER = logging.getLogger("pi.safety")
-_ALERT_LEVELS = ("ORANGE", "RED")
 
 
 @dataclass(frozen=True)
@@ -115,31 +113,15 @@ async def evaluate_incoming_message(
     session.add(crisis)
     await session.flush()
 
-    if decision.level not in _ALERT_LEVELS:
-        return MessageOutcome(decision, crisis.id, None, False, ())
-
-    sla_minutes = config.policy.response_sla_minutes.get(decision.level)
-    sla_due_at = (
-        dt.datetime.now(dt.UTC) + dt.timedelta(minutes=sla_minutes) if sla_minutes else None
-    )
-    alert, created = await open_alert(
+    alert_id, created, outcomes = await escalate(
         session,
         organization_id=organization_id,
         patient_id=patient_id,
         crisis_event_id=crisis.id,
         decision=decision,
+        policy=config.policy,
         idempotency_key=message_reference,
-        sla_due_at=sla_due_at,
+        notification_provider=notification_provider,
+        request_id=request_id,
     )
-    outcomes: tuple = ()
-    if created:
-        outcomes = tuple(
-            await notify_alert(
-                session,
-                alert=alert,
-                channels=config.policy.notification_channels,
-                provider=notification_provider,
-                request_id=request_id,
-            )
-        )
-    return MessageOutcome(decision, crisis.id, alert.id, created, outcomes)
+    return MessageOutcome(decision, crisis.id, alert_id, created, outcomes)

@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import account, auth, conversation, health
+from app.api import account, assessment, auth, conversation, goals, health
 from app.core.config import get_settings
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging, get_logger
@@ -97,6 +97,8 @@ def create_app() -> FastAPI:
     app.include_router(auth.router)
     app.include_router(account.router)
     app.include_router(conversation.router)
+    app.include_router(goals.router)
+    app.include_router(assessment.router)
 
     if settings.otel_enabled and settings.env != "testing":
         instrument_app(app)

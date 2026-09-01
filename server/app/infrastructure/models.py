@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import uuid
 
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
     CheckConstraint,
     ForeignKey,
@@ -16,6 +17,7 @@ from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.ai.providers.embedding import EMBEDDING_DIM
 from app.core.db import Base
 
 
@@ -248,6 +250,78 @@ class CommunicationPreference(Base):
     )
 
 
+class Phq9Assessment(Base):
+    __tablename__ = "phq9_assessments"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    instrument_version: Mapped[str] = mapped_column(String(16), nullable=False)
+    answers_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    total_score: Mapped[int] = mapped_column(nullable=False)
+    item9_score: Mapped[int] = mapped_column(nullable=False)
+    completed_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("total_score BETWEEN 0 AND 27", name="ck_phq9_total"),
+        CheckConstraint("item9_score BETWEEN 0 AND 3", name="ck_phq9_item9"),
+        Index("ix_phq9_user_time", "user_id", "completed_at"),
+    )
+
+
+class AssessmentReminder(Base):
+    __tablename__ = "assessment_reminders"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    instrument: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PHQ-9")
+    due_at: Mapped[dt.datetime] = mapped_column(TIMESTAMP(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, server_default="PENDING")
+    created_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('PENDING','SENT','DONE','CANCELLED')", name="ck_reminder_status"),
+        Index("ix_reminder_due", "status", "due_at"),
+    )
+
+
+class Goal(Base):
+    """Objectif de travail choisi par la personne (master prompt §56 : jamais imposé)."""
+
+    __tablename__ = "goals"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, default="ACTIVE")
+    created_at: Mapped[dt.datetime] = _now()
+    updated_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("status IN ('ACTIVE','ACHIEVED','PAUSED','DROPPED')", name="ck_goal_status"),
+        Index("ix_goals_user", "user_id", "status"),
+    )
+
+
+class GoalProgress(Base):
+    __tablename__ = "goal_progress"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    goal_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("goals.id"), nullable=False)
+    value: Mapped[int] = mapped_column(nullable=False, server_default=text("0"))
+    note_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recorded_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("value BETWEEN 0 AND 100", name="ck_goal_progress_value"),
+        Index("ix_goal_progress_goal", "goal_id", "recorded_at"),
+    )
+
+
 class DeletionRequest(Base):
     __tablename__ = "deletion_requests"
 
@@ -317,7 +391,9 @@ class Alert(Base):
     id: Mapped[uuid.UUID] = _uuid_pk()
     organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     patient_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
-    crisis_event_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("crisis_events.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String(12), nullable=False, server_default="MESSAGE")
+    crisis_event_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("crisis_events.id"), nullable=True)
+    assessment_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("phq9_assessments.id"), nullable=True)
     level: Mapped[str] = mapped_column(String(10), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="OPEN")
     idempotency_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
@@ -330,9 +406,13 @@ class Alert(Base):
 
     __table_args__ = (
         CheckConstraint("level IN ('ORANGE','RED')", name="ck_alert_level"),
+        CheckConstraint("source IN ('MESSAGE','ASSESSMENT')", name="ck_alert_source"),
         CheckConstraint(
             "status IN ('OPEN','ACKNOWLEDGED','IN_REVIEW','ESCALATED','RESOLVED','CLOSED','CANCELLED')",
             name="ck_alert_status",
+        ),
+        CheckConstraint(
+            "(crisis_event_id IS NOT NULL) OR (assessment_id IS NOT NULL)", name="ck_alert_has_trigger"
         ),
         Index("ix_alerts_status", "organization_id", "status", "level", "created_at"),
         Index("ix_alerts_assignee", "assigned_clinician_id", "status"),
@@ -351,6 +431,65 @@ class AlertAction(Base):
     created_at: Mapped[dt.datetime] = _now()
 
     __table_args__ = (Index("ix_alert_actions_alert", "alert_id", "created_at"),)
+
+
+# --------------------------------------------------------------------------- #
+# Moteur de mémoire (Phase 5) — data-model-v2 §5, overview-v2 §6.               #
+# --------------------------------------------------------------------------- #
+
+MEMORY_TYPES = ("WORKING", "EPISODIC", "SEMANTIC", "LONGITUDINAL")
+MEMORY_PROVENANCE = ("USER_DECLARED", "MODEL_INFERRED", "CLINICIAN_VALIDATED", "SYSTEM_DERIVED", "TEMPORARY")
+MEMORY_STATUSES = ("ACTIVE", "UNCERTAIN", "EXPIRED", "REVOKED", "CLINICIAN_VALIDATED")
+
+
+class Memory(Base):
+    __tablename__ = "memories"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    type: Mapped[str] = mapped_column(String(16), nullable=False)
+    content_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
+    provenance: Mapped[str] = mapped_column(String(24), nullable=False)
+    confidence: Mapped[float] = mapped_column(nullable=False, server_default=text("1.0"))
+    sensitivity: Mapped[str] = mapped_column(String(12), nullable=False, server_default="normal")
+    consent_scope: Mapped[str] = mapped_column(String(20), nullable=False, server_default="CARE")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ACTIVE")
+    source_conversation_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("conversations.id"), nullable=True)
+    source_message_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("messages.id"), nullable=True)
+    created_at: Mapped[dt.datetime] = _now()
+    updated_at: Mapped[dt.datetime] = _now()
+    expires_at: Mapped[dt.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("type IN ('WORKING','EPISODIC','SEMANTIC','LONGITUDINAL')", name="ck_memory_type"),
+        CheckConstraint(
+            "provenance IN ('USER_DECLARED','MODEL_INFERRED','CLINICIAN_VALIDATED','SYSTEM_DERIVED','TEMPORARY')",
+            name="ck_memory_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('ACTIVE','UNCERTAIN','EXPIRED','REVOKED','CLINICIAN_VALIDATED')", name="ck_memory_status"
+        ),
+        CheckConstraint("confidence BETWEEN 0 AND 1", name="ck_memory_confidence"),
+        Index("ix_memories_user", "user_id", "type", "status"),
+    )
+
+
+class LongitudinalSnapshot(Base):
+    __tablename__ = "longitudinal_snapshots"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    emotion_trend_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    phq9_trend_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    goal_trend_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    risk_trend_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    engagement_json: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    computed_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (Index("ix_longitudinal_user", "user_id", "computed_at"),)
 
 
 class Conversation(Base):

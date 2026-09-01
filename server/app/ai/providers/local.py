@@ -37,20 +37,41 @@ def _system_prompt(messages: list[ChatMessage]) -> str:
     return messages[0]["content"] if messages and messages[0]["role"] == "system" else ""
 
 
+_REFLECTIONS = {
+    "warm": "Ce que vous décrivez semble prendre de la place, et je prends le temps de le lire.",
+    "neutral": "Je note ce que vous décrivez.",
+    "direct": "C'est noté.",
+}
+_SUGGESTIONS = (
+    "Une piste, si cela vous parle : essayer de repérer un moment de la journée où c'est un peu moins lourd.",
+)
+
+
 def compose(messages: list[ChatMessage]) -> str:
+    """Non génératif : la variation reflète la personnalisation (ton, longueur,
+    fréquence de questions, directivité) telle qu'elle a été tissée dans le
+    message système par `build_messages`. Un vrai LLM nuancerait ; ici on
+    produit une variation grossière mais réelle et déterministe."""
     text = _last_user_text(messages)
     system = _system_prompt(messages)
     idx = sum(text.encode("utf-8")) % len(_OPENERS)
-    parts = [_OPENERS[idx]]
-
     words = len(text.split())
-    if words >= 12:
-        parts.append("Ce que vous décrivez semble prendre de la place, et je prends le temps de le lire.")
 
-    one_question_only = "une seule question ciblée" in system
+    tone = "direct" if "ton direct" in system else ("neutral" if "ton neutre" in system else "warm")
+    prefers_short = "1 à 2 phrases" in system
+    prefers_detailed = "un peu plus développées" in system
     prefers_few_questions = "peu de questions" in system
-    if not (one_question_only and words < 6) and not prefers_few_questions:
+    one_question_only = "une seule question ciblée" in system
+    is_directive = "proposer une piste concrète" in system
+
+    parts = [_OPENERS[idx]]
+    if not prefers_short and (words >= 12 or prefers_detailed):
+        parts.append(_REFLECTIONS[tone])
+    ask_question = not prefers_few_questions and not (one_question_only and words < 6)
+    if ask_question:
         parts.append(_QUESTIONS[idx])
+    if is_directive and not prefers_short:
+        parts.append(_SUGGESTIONS[0])
     return " ".join(parts)
 
 

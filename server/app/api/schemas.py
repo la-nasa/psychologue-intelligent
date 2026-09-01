@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, SecretStr
@@ -83,3 +84,42 @@ class PreferencesResponse(BaseModel):
 
 class PreferencesUpdateRequest(PreferencesResponse):
     pass
+
+
+class GoalCreateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+    description: str = Field(default="", max_length=2000)
+
+
+class GoalProgressRequest(BaseModel):
+    value: int = Field(ge=0, le=100)
+    note: str = Field(default="", max_length=1000)
+
+
+class GoalItem(BaseModel):
+    id: str
+    title: str
+    description: str
+    status: str
+    progress: int
+
+
+# --- Phase 8 : PHQ-9 ---
+
+
+class Phq9SubmitRequest(BaseModel):
+    answers: list[int] = Field(min_length=9, max_length=9)
+
+
+class Phq9SubmitResponse(BaseModel):
+    id: str
+    instrument_version: str
+    total_score: int
+    item9_score: int
+    severity_band: str
+    alert_level: str | None
+    alert_created: bool
+
+
+class ReminderRequest(BaseModel):
+    due_at: datetime

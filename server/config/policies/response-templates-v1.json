@@ -9,5 +9,6 @@
     "Merci d'avoir partage cela. Je note ce que vous avez ecrit.",
     "J'entends que ce moment compte pour vous, merci de le partager.",
     "Merci pour ce message. Prenez le temps dont vous avez besoin."
-  ]
+  ],
+  "safe_fallback": "Merci pour votre message. Je rencontre une difficulte technique pour vous repondre correctement a l'instant. Ce que vous avez ecrit est bien enregistre. Si votre situation est urgente, contactez les services d'urgence locaux ou une personne de confiance."
 }

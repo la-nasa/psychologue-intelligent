@@ -71,4 +71,16 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    settings = Settings()
+    if settings.env == "testing":
+        # Limites de débit basses pour que les tests qui vérifient le mécanisme
+        # n'aient pas à émettre des dizaines de requêtes réelles.
+        settings = settings.model_copy(
+            update={
+                "rate_limit_message_per_min": 8,
+                "rate_limit_register_per_hour": 100,
+                "rate_limit_login_per_15min": 50,
+                "rate_limit_phq9_per_hour": 6,
+            }
+        )
+    return settings

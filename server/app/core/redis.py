@@ -11,13 +11,8 @@ _client: redis.Redis | None = None
 
 def get_redis() -> redis.Redis:
     global _client
-    settings = get_settings()
-    if settings.env == "testing":
-        # pytest-asyncio : une boucle par test ; un pool Redis mis en cache
-        # lierait ses connexions à la première boucle. On recrée à chaque appel.
-        return redis.from_url(settings.redis_url, decode_responses=True)
     if _client is None:
-        _client = redis.from_url(settings.redis_url, decode_responses=True)
+        _client = redis.from_url(get_settings().redis_url, decode_responses=True)
     return _client
 
 

@@ -13,6 +13,13 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class Phq9AlertPolicy:
+    item9_red_at: int
+    item9_orange_at: int
+    total_orange_at: int
+
+
+@dataclass(frozen=True)
 class CrisisPolicy:
     version: str
     country: str
@@ -24,6 +31,7 @@ class CrisisPolicy:
     human_review_required: dict[str, bool]
     notification_channels: tuple[str, ...]
     emergency_contacts: tuple[str, ...]
+    phq9_alert: Phq9AlertPolicy
     approved_by: str | None
     approved_at: str | None
 
@@ -41,6 +49,7 @@ class ResponseTemplates:
     red: str
     orange: str
     green_acknowledgments: tuple[str, ...]
+    safe_fallback: str
     approved_by: str | None
     approved_at: str | None
 
@@ -66,6 +75,12 @@ def load_crisis_policy(path: Path) -> CrisisPolicy:
         review = {str(k): bool(v) for k, v in data["human_review_required"].items()}
         channels = tuple(str(c) for c in data["notification_channels"])
         contacts = tuple(str(c) for c in data["emergency_contacts"])
+        phq9_raw = data.get("phq9_alert") or {}
+        phq9_alert = Phq9AlertPolicy(
+            item9_red_at=int(phq9_raw.get("item9_red_at", 2)),
+            item9_orange_at=int(phq9_raw.get("item9_orange_at", 1)),
+            total_orange_at=int(phq9_raw.get("total_orange_at", 20)),
+        )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError(f"policy file is missing or misshapen fields: {path}") from error
 
@@ -96,6 +111,7 @@ def load_crisis_policy(path: Path) -> CrisisPolicy:
         human_review_required=review,
         notification_channels=channels,
         emergency_contacts=contacts,
+        phq9_alert=phq9_alert,
         approved_by=approved_by,
         approved_at=approved_at,
     )
@@ -127,6 +143,8 @@ def load_response_templates(path: Path) -> ResponseTemplates:
     if not version or not red or not orange or not green_acknowledgments:
         raise ValueError("response templates must all be non-empty")
 
+    safe_fallback = str(data.get("safe_fallback") or green_acknowledgments[0])
+
     approved_by, approved_at = data.get("approved_by"), data.get("approved_at")
     if environment != "development" and (not approved_by or not approved_at):
         raise ValueError(
@@ -136,5 +154,5 @@ def load_response_templates(path: Path) -> ResponseTemplates:
 
     return ResponseTemplates(
         version=version, red=red, orange=orange, green_acknowledgments=green_acknowledgments,
-        approved_by=approved_by, approved_at=approved_at,
+        safe_fallback=safe_fallback, approved_by=approved_by, approved_at=approved_at,
     )
