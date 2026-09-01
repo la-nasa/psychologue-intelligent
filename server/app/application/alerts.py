@@ -17,9 +17,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.safety.crisis import CrisisDecision
 from app.infrastructure.models import Alert, AlertAction
 
-# Transitions autorisées (porté verbatim de v1).
+# Cycle de vie (master prompt §32). `OPEN` = créée mais notification pas encore
+# confirmée ; `NOTIFIED` = au moins un canal a confirmé l'envoi (posé
+# automatiquement par l'EscalationEngine). Les transitions suivantes sont
+# humaines (clinicien) ou système (balayage SLA -> ESCALATED).
 TRANSITIONS: dict[str, set[str]] = {
-    "OPEN": {"ACKNOWLEDGED", "ESCALATED", "CANCELLED"},
+    "OPEN": {"NOTIFIED", "ACKNOWLEDGED", "ESCALATED", "CANCELLED"},
+    "NOTIFIED": {"ACKNOWLEDGED", "ESCALATED", "CANCELLED"},
     "ACKNOWLEDGED": {"IN_REVIEW", "ESCALATED", "RESOLVED"},
     "IN_REVIEW": {"ESCALATED", "RESOLVED"},
     "ESCALATED": {"RESOLVED"},
@@ -97,9 +101,10 @@ async def transition_alert(
     *,
     alert_id: uuid.UUID,
     target: str,
-    actor_id: uuid.UUID,
+    actor_id: uuid.UUID | None,
     justification: str,
 ) -> Alert:
+    """`actor_id=None` => transition système (auto-NOTIFIED, balayage SLA)."""
     row = (await session.execute(select(Alert).where(Alert.id == alert_id))).scalar_one_or_none()
     if row is None:
         raise ValueError("alert not found")
@@ -129,9 +134,18 @@ async def transition_alert(
             alert_id=alert_id,
             actor_id=actor_id,
             action=target,
-            justification=justification or None,
+            justification=justification or ("system" if actor_id is None else None),
         )
     )
     await session.flush()
     await session.refresh(row)
     return row
+
+
+async def mark_notified(session: AsyncSession, *, alert_id: uuid.UUID) -> None:
+    """Posée par l'EscalationEngine quand au moins un canal a confirmé l'envoi.
+    Silencieuse si l'alerte a déjà avancé (un humain a été plus rapide)."""
+    try:
+        await transition_alert(session, alert_id=alert_id, target="NOTIFIED", actor_id=None, justification="")
+    except ValueError:
+        pass

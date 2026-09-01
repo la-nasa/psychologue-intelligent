@@ -81,14 +81,14 @@ def create_app() -> FastAPI:
     # Chargées une fois au démarrage : une politique invalide ou non approuvée
     # (hors development) fait échouer le boot, jamais une requête (ADR-002/004).
     from app.ai.providers.external import ExternalLLMProvider
-    from app.ai.providers.keyword_risk import KeywordRiskModel
+    from app.ai.providers.lexicon_risk import LexiconRiskModel
     from app.ai.providers.local import LocalSupportiveResponder
     from app.ai.routing.model_router import Providers
     from app.application.notifications import LogNotificationProvider
     from app.application.safety import load_safety_config
 
     app.state.safety = load_safety_config(settings)
-    app.state.risk_model = KeywordRiskModel()
+    app.state.risk_model = LexiconRiskModel()
     app.state.notification_provider = LogNotificationProvider()
     app.state.providers = Providers(local=LocalSupportiveResponder(), external=ExternalLLMProvider())
 

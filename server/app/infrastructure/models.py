@@ -408,7 +408,7 @@ class Alert(Base):
         CheckConstraint("level IN ('ORANGE','RED')", name="ck_alert_level"),
         CheckConstraint("source IN ('MESSAGE','ASSESSMENT')", name="ck_alert_source"),
         CheckConstraint(
-            "status IN ('OPEN','ACKNOWLEDGED','IN_REVIEW','ESCALATED','RESOLVED','CLOSED','CANCELLED')",
+            "status IN ('OPEN','NOTIFIED','ACKNOWLEDGED','IN_REVIEW','ESCALATED','RESOLVED','CLOSED','CANCELLED')",
             name="ck_alert_status",
         ),
         CheckConstraint(

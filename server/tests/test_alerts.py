@@ -3,7 +3,6 @@ Porté de v1 `tests/test_security.py::BusinessLogicRaceConditionTests` (transiti
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import uuid
 from pathlib import Path
 
@@ -19,10 +18,11 @@ from app.domain.safety.policy import load_crisis_policy, load_crisis_rules, load
 from app.infrastructure.models import Alert, AlertAction
 
 _DIR = Path("config/policies")
+# Sans canal : l'alerte reste OPEN (pas de transition auto NOTIFIED) — ces tests
+# portent sur la garde de concurrence, pas sur la notification. Le NOTIFIED
+# automatique est couvert par test_alert_lifecycle.py.
 _CONFIG = SafetyConfig(
-    policy=dataclasses.replace(
-        load_crisis_policy(_DIR / "crisis-policy-v1.json"), notification_channels=("clinician-console",)
-    ),
+    policy=load_crisis_policy(_DIR / "crisis-policy-v1.json"),
     rules=load_crisis_rules(_DIR / "crisis-rules-v1.json"),
     templates=load_response_templates(_DIR / "response-templates-v1.json"),
 )

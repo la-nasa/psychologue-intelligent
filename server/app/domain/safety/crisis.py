@@ -9,15 +9,13 @@ Pur, sans I/O.
 from __future__ import annotations
 
 import logging
-import unicodedata
 from dataclasses import dataclass
 from typing import Protocol
 
+from app.domain.safety.normalize import harden
 from app.domain.safety.policy import CrisisPolicy, CrisisRules
 
 LOGGER = logging.getLogger("pi.safety.crisis")
-
-MAX_MESSAGE_CHARS = 8_000
 
 
 class RiskModel(Protocol):
@@ -39,17 +37,22 @@ class CrisisDecision:
 
 
 def normalize(text: str) -> str:
-    if not text or len(text) > MAX_MESSAGE_CHARS:
-        raise ValueError("invalid message")
-    folded = text.casefold()
-    stripped = unicodedata.normalize("NFKD", folded)
-    return "".join(ch for ch in stripped if not unicodedata.combining(ch))
+    """Normalisation durcie (accents, casse, leetspeak, espacement, allongement).
+    Voir `domain/safety/normalize.harden`."""
+    return harden(text)
 
 
-def _rule_signal(normalized_text: str, rules: CrisisRules) -> tuple[float, float, tuple[str, ...]]:
-    if any(term in normalized_text for term in rules.high_risk_terms):
+def _matches(hardened: str, despaced: str, term: str) -> bool:
+    # Appariement normal + appariement « sans espaces » : couvre l'écriture
+    # caractère par caractère où plusieurs mots fusionnent en un bloc.
+    return term in hardened or term.replace(" ", "") in despaced
+
+
+def _rule_signal(hardened_text: str, rules: CrisisRules) -> tuple[float, float, tuple[str, ...]]:
+    despaced = hardened_text.replace(" ", "")
+    if any(_matches(hardened_text, despaced, term) for term in rules.high_risk_terms):
         return 0.95, 0.90, ("rule_high_risk_term",)
-    if any(term in normalized_text for term in rules.concern_terms):
+    if any(_matches(hardened_text, despaced, term) for term in rules.concern_terms):
         return 0.55, 0.80, ("rule_concern_term",)
     return 0.0, 0.80, ()
 

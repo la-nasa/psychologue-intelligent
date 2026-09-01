@@ -10,12 +10,23 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application.alerts import open_alert, open_alert_from_decision
+from app.application.alerts import mark_notified, open_alert, open_alert_from_decision
 from app.application.notifications import NotificationOutcome, NotificationProvider, notify_alert
 from app.domain.safety.crisis import CrisisDecision
 from app.domain.safety.policy import CrisisPolicy
 
 ALERT_LEVELS = ("ORANGE", "RED")
+
+
+async def _notify_and_mark(
+    session: AsyncSession, alert, channels: tuple[str, ...], provider: NotificationProvider, request_id: str
+) -> tuple[NotificationOutcome, ...]:
+    outcomes = tuple(
+        await notify_alert(session, alert=alert, channels=channels, provider=provider, request_id=request_id)
+    )
+    if any(o.status == "SENT" for o in outcomes):
+        await mark_notified(session, alert_id=alert.id)
+    return outcomes
 
 
 async def escalate(
@@ -47,14 +58,8 @@ async def escalate(
     )
     outcomes: tuple[NotificationOutcome, ...] = ()
     if created:
-        outcomes = tuple(
-            await notify_alert(
-                session,
-                alert=alert,
-                channels=policy.notification_channels,
-                provider=notification_provider,
-                request_id=request_id,
-            )
+        outcomes = await _notify_and_mark(
+            session, alert, policy.notification_channels, notification_provider, request_id
         )
     return alert.id, created, outcomes
 
@@ -95,10 +100,7 @@ async def escalate_assessment(
     )
     outcomes: tuple[NotificationOutcome, ...] = ()
     if created:
-        outcomes = tuple(
-            await notify_alert(
-                session, alert=alert, channels=policy.notification_channels,
-                provider=notification_provider, request_id=request_id,
-            )
+        outcomes = await _notify_and_mark(
+            session, alert, policy.notification_channels, notification_provider, request_id
         )
     return alert.id, created, outcomes
