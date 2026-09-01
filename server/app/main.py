@@ -9,7 +9,7 @@ import structlog
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import account, admin, assessment, auth, clinician, conversation, goals, health
+from app.api import account, admin, ai_review, assessment, auth, clinician, conversation, goals, health
 from app.core.config import get_settings
 from app.core.errors import install_exception_handlers
 from app.core.logging import configure_logging, get_logger
@@ -100,6 +100,7 @@ def create_app() -> FastAPI:
     app.include_router(goals.router)
     app.include_router(assessment.router)
     app.include_router(clinician.router)
+    app.include_router(ai_review.router)
     app.include_router(admin.router)
 
     if settings.otel_enabled and settings.env != "testing":

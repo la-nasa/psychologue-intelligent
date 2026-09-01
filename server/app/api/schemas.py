@@ -162,3 +162,13 @@ class RelationshipItem(BaseModel):
 class AlertActionRequest(BaseModel):
     target: Literal["ACKNOWLEDGED", "IN_REVIEW", "ESCALATED", "RESOLVED", "CANCELLED"]
     justification: str = Field(default="", max_length=2000)
+
+
+class AiReviewRequest(BaseModel):
+    decision: Literal["APPROVE", "EDIT", "REJECT", "FLAG_SAFETY"]
+    scores: dict[str, int] = Field(description="7 dimensions 1..5")
+    feedback_category: Literal[
+        "TONE", "CLINICAL_ACCURACY", "PERSONALIZATION", "CONTEXT_UNDERSTANDING", "SAFETY", "RELEVANCE", "OTHER"
+    ]
+    corrected_response: str = Field(default="", max_length=8000)
+    clinical_comment: str = Field(default="", max_length=4000)

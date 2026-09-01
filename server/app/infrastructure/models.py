@@ -587,6 +587,42 @@ class ConversationState(Base):
     )
 
 
+class ClinicianResponseReview(Base):
+    """Revue clinicienne d'une réponse de l'assistant (master prompt §38-39,
+    data-model-v2 §104). **Sert exclusivement à améliorer l'IA** (jamais à
+    évaluer ni sanctionner un clinicien) — voir `docs/governance/`). Aucune
+    agrégation par `reviewer_id` n'est exposée.
+
+    `scores_json` : 7 dimensions 1-5 (empathy, relevance, personalization,
+    context, safety, clarity, usefulness). `corrected_response_enc` : proposé
+    seulement pour `decision='EDIT'`."""
+
+    __tablename__ = "clinician_response_reviews"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    message_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("messages.id"), nullable=False)
+    reviewer_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    decision: Mapped[str] = mapped_column(String(16), nullable=False)
+    corrected_response_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scores_json: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    feedback_category: Mapped[str] = mapped_column(String(24), nullable=False)
+    clinical_comment_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    model_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    policy_version: Mapped[str | None] = mapped_column(String(40), nullable=True)
+    created_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("decision IN ('APPROVE','EDIT','REJECT','FLAG_SAFETY')", name="ck_review_decision"),
+        CheckConstraint(
+            "decision <> 'EDIT' OR corrected_response_enc IS NOT NULL", name="ck_review_edit_has_correction"
+        ),
+        UniqueConstraint("message_id", "reviewer_id", name="uq_review_message_reviewer"),
+        Index("ix_reviews_org_decision", "organization_id", "decision", "created_at"),
+        Index("ix_reviews_model", "model_version", "created_at"),
+    )
+
+
 class NotificationChannel(Base):
     """Canal de notification **par organisation** (data-model-v2 §4). Chaque
     établissement configure ses propres destinataires. `config_enc` chiffre la

@@ -41,6 +41,7 @@ def _migrated_db() -> Iterator[None]:
 _CLEAN_ORDER = (
     "goal_progress", "goals",
     "memories", "longitudinal_snapshots",
+    "clinician_response_reviews",
     "conversation_state", "messages", "conversations",
     "notifications", "notification_channels", "alert_actions", "alerts", "crisis_events", "risk_assessments",
     "patient_clinician_relationships",
