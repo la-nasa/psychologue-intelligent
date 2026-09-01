@@ -43,6 +43,7 @@ _CLEAN_ORDER = (
     "memories", "longitudinal_snapshots",
     "conversation_state", "messages", "conversations",
     "notifications", "notification_channels", "alert_actions", "alerts", "crisis_events", "risk_assessments",
+    "patient_clinician_relationships",
     "assessment_reminders", "phq9_assessments",
     "deletion_requests", "communication_preferences", "profiles", "consents",
     "audit_logs", "user_roles", "sessions", "users", "clinics", "organizations",

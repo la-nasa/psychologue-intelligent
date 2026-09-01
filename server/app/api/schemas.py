@@ -140,3 +140,25 @@ class ChannelItem(BaseModel):
     kind: str
     is_active: bool
     target_hint: str
+
+
+# --- Phase 12 : plateforme clinicien ---
+
+
+class RelationshipCreateRequest(BaseModel):
+    patient_id: str = Field(min_length=1, max_length=64)
+    clinician_id: str = Field(min_length=1, max_length=64)
+
+
+class RelationshipItem(BaseModel):
+    id: str
+    patient_id: str
+    clinician_id: str
+    status: str
+    created_at: str
+    ended_at: str | None = None
+
+
+class AlertActionRequest(BaseModel):
+    target: Literal["ACKNOWLEDGED", "IN_REVIEW", "ESCALATED", "RESOLVED", "CANCELLED"]
+    justification: str = Field(default="", max_length=2000)

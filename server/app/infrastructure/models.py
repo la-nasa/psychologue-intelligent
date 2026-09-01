@@ -433,6 +433,40 @@ class AlertAction(Base):
     __table_args__ = (Index("ix_alert_actions_alert", "alert_id", "created_at"),)
 
 
+class PatientClinicianRelationship(Base):
+    """Lien de suivi entre un patient et un clinicien (master prompt §33, §34).
+
+    C'est la **seule** porte d'accès d'un clinicien au dossier d'un patient : pas
+    de relation `ACTIVE` => pas de lecture, pas d'action sur alerte (deny by
+    default). Créée / rompue par un `ADMIN` (`admin.relationships.manage`)."""
+
+    __tablename__ = "patient_clinician_relationships"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    patient_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    clinician_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    status: Mapped[str] = mapped_column(String(12), nullable=False, server_default="ACTIVE")
+    created_by: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[dt.datetime] = _now()
+    ended_at: Mapped[dt.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    ended_by: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+
+    __table_args__ = (
+        CheckConstraint("status IN ('ACTIVE','ENDED')", name="ck_pcr_status"),
+        # Au plus un lien ACTIF pour un couple (patient, clinicien) donné.
+        Index(
+            "uq_pcr_active",
+            "patient_id",
+            "clinician_id",
+            unique=True,
+            postgresql_where=text("status = 'ACTIVE'"),
+        ),
+        Index("ix_pcr_clinician", "clinician_id", "status"),
+        Index("ix_pcr_patient", "patient_id", "status"),
+    )
+
+
 # --------------------------------------------------------------------------- #
 # Moteur de mémoire (Phase 5) — data-model-v2 §5, overview-v2 §6.               #
 # --------------------------------------------------------------------------- #
