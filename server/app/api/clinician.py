@@ -13,8 +13,11 @@ from fastapi import APIRouter
 from app.api.deps import CurrentPrincipal, RequestId
 from app.api.schemas import AlertActionRequest
 from app.application import alerts, clinician
+from app.application.patient_summary import Evidence, resolve_evidence
 from app.application.rbac import require_role
+from app.application.relationships import require_active_relationship
 from app.core.db import tenant_session
+from app.core.errors import NotFoundError
 
 router = APIRouter(prefix="/api/v1/clinician", tags=["clinician"])
 
@@ -42,6 +45,40 @@ async def get_patient_timeline(patient_id: str, principal: CurrentPrincipal) -> 
         return await clinician.patient_timeline(
             session, clinician_id=principal.user_id, patient_id=uuid.UUID(patient_id)
         )
+
+
+@router.get("/patients/{patient_id}/summary")
+async def get_patient_summary(patient_id: str, principal: CurrentPrincipal) -> dict:
+    require_role(principal, *_CLINICIAN_ROLES)
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        return await clinician.patient_summary_for(
+            session, clinician_id=principal.user_id, patient_id=uuid.UUID(patient_id)
+        )
+
+
+@router.get("/patients/{patient_id}/360")
+async def get_patient_360(patient_id: str, principal: CurrentPrincipal) -> dict:
+    require_role(principal, *_CLINICIAN_ROLES)
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        return await clinician.patient_360(
+            session, clinician_id=principal.user_id, patient_id=uuid.UUID(patient_id)
+        )
+
+
+@router.get("/patients/{patient_id}/evidence/{evidence_type}/{evidence_id}")
+async def get_evidence(
+    patient_id: str, evidence_type: str, evidence_id: str, principal: CurrentPrincipal
+) -> dict:
+    require_role(principal, *_CLINICIAN_ROLES)
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        pid = uuid.UUID(patient_id)
+        await require_active_relationship(session, clinician_id=principal.user_id, patient_id=pid)
+        resolved = await resolve_evidence(
+            session, patient_id=pid, evidence=Evidence(type=evidence_type, id=evidence_id)
+        )
+        if resolved is None:
+            raise NotFoundError("evidence not found for this patient")
+        return resolved
 
 
 @router.get("/alerts")

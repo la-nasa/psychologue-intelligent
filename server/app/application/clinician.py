@@ -21,13 +21,14 @@ import uuid
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import assessment
+from app.application import assessment, consent, patient_summary
 from app.application.relationships import require_active_relationship
 from app.core.errors import DomainError
 from app.domain.assessment.phq9 import severity_band
 from app.infrastructure.models import (
     Alert,
     AlertAction,
+    Goal,
     PatientClinicianRelationship,
     Phq9Assessment,
     Profile,
@@ -244,4 +245,46 @@ async def patient_timeline(
         "phq9_trend": await assessment.trend(session, patient_id),
         "alerts": [alert_row(a) for a in alerts],
         "alert_actions": actions,
+    }
+
+
+async def patient_summary_for(
+    session: AsyncSession, *, clinician_id: uuid.UUID, patient_id: uuid.UUID
+) -> dict:
+    await require_active_relationship(session, clinician_id=clinician_id, patient_id=patient_id)
+    return (await patient_summary.build_summary(session, patient_id=patient_id)).to_dict()
+
+
+async def patient_360(
+    session: AsyncSession, *, clinician_id: uuid.UUID, patient_id: uuid.UUID
+) -> dict:
+    """Vue « Patient 360 » : identité + consentements + synthèse tracée + timeline
+    + objectifs. Une seule porte : la relation `ACTIVE`. Aucun contenu déchiffré
+    (ni message, ni mémoire, ni réponse brute de questionnaire)."""
+    await require_active_relationship(session, clinician_id=clinician_id, patient_id=patient_id)
+
+    display_name = (
+        await session.execute(select(Profile.display_name).where(Profile.user_id == patient_id))
+    ).scalar_one_or_none()
+    goals = (
+        await session.execute(
+            select(Goal).where(Goal.user_id == patient_id).order_by(Goal.created_at.desc())
+        )
+    ).scalars().all()
+
+    summary = await patient_summary.build_summary(session, patient_id=patient_id)
+    timeline = await patient_timeline(session, clinician_id=clinician_id, patient_id=patient_id)
+    return {
+        "patient_id": str(patient_id),
+        "display_name": display_name or "",
+        "consents": await consent.list_for_user(session, patient_id),
+        "summary": summary.to_dict(),
+        "goals": [
+            {"id": str(g.id), "title": g.title, "status": g.status, "created_at": g.created_at.isoformat()}
+            for g in goals
+        ],
+        "phq9_history": timeline["phq9_history"],
+        "phq9_trend": timeline["phq9_trend"],
+        "alerts": timeline["alerts"],
+        "alert_actions": timeline["alert_actions"],
     }
