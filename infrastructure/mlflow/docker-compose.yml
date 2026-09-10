@@ -1,0 +1,53 @@
+# MLflow Server pour Psychologue Intelligent V2
+# Prompt Maître §42, §137 (MLOps)
+
+services:
+  mlflow:
+    image: docker.io/bitnami/mlflow:2.20
+    platform: linux/amd64
+    container_name: pi-mlflow
+    restart: unless-stopped
+    environment:
+      # Backend store: PostgreSQL (même DB que l'app, database séparée)
+      - MLFLOW_BACKEND_STORE_URI=postgresql://pi:pi_dev_only@postgres:5432/mlflow_registry
+      # Default artifact store: local filesystem (à remplacer par S3 en production)
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/opt/bitnami/mlflow/artifacts
+      - MLFLOW_HOST=0.0.0.0
+      - MLFLOW_PORT=5000
+      # Authentification basique pour dev (à renforcer en prod)
+      - MLFLOW_USERNAME=pi_admin
+      - MLFLOW_PASSWORD=mlflow_dev_change_me_in_prod
+    ports:
+      - "5050:5000"  # UI + API REST
+    volumes:
+      - mlflow_artifacts:/opt/bitnami/mlflow/artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - pi_network
+    labels:
+      - "traefik.enable=false"
+
+volumes:
+  mlflow_artifacts:
+    driver: local
+
+networks:
+  pi_network:
+    external: true
+    name: workspace_default
+
+# Usage depuis Python:
+# import mlflow
+# mlflow.set_tracking_uri("http://localhost:5050")
+# mlflow.set_experiment("psychologue-intelligent-v2")
+#
+# Avec le backend store PostgreSQL, les métadonnées sont persistantes
+# et partageables entre développeurs/équipes.
