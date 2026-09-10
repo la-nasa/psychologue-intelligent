@@ -1,24 +1,54 @@
+```gitignore
+# Python
 __pycache__/
 *.py[cod]
-work/*.db
-work/*.db-*
-.env
-.venv/
-.venv2/
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-.coverage
-htmlcov/
-ml/data/
+.installed.cfg
+*.egg
 
-# V2
+# Node.js
 node_modules/
-.next/
-server/.pytest_cache/
-server/.ruff_cache/
-server/.mypy_cache/
-*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
+# IDE
+.vscode/
+.idea/
 
+# Environment
+.env
+.env.local
+.env.
 
-#Ignore vscode AI rules
-.github\instructions\codacy.instructions.md
+# Logs
+*.log
+
+# Coverage
+.coverage
+coverage/
+htmlcov/
+
+# Tests
+.pytest_cache/
+.hypothesis/
+
+# OS
+.DS_Store
+Thumbs.db
+```
