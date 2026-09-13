@@ -146,15 +146,18 @@ Objectifs immédiats:
 
 ## 📄 Documents Produits
 
+> **Note de réconciliation (2026-09-13)** : ce rapport a été produit par un audit exécuté sans connaissance de l'état réel de `server/` (déjà à la Phase 14, 292 tests, 90% couverture — voir `phase-0-audit-v2.md`). La numérotation de phases ci-dessus (1→17) **n'est pas** la référence retenue ; la roadmap originale (0→23, `phase-0-audit-v2.md`) reste en vigueur. Les ADR listés ci-dessous ont été renumérotés pour éviter toute collision avec les ADR déjà acceptés (ADR-006 à ADR-008) ; deux d'entre eux (multi-tenancy schema-per-org, LLM hybride sans consentement `AI_EXTERNAL`) contredisent ou omettent des invariants déjà implémentés et sont marqués REJETÉ / REDONDANT dans leur fichier respectif — ne pas les implémenter tels quels.
+
 - [Phase 0 Report Complet](./phase-0-report-final.md)
-- [ADR-006: Stack Frontend](../adr/ADR-006-to-010-stack-architecture.md)
-- [ADR-007: Multi-Tenancy](../adr/ADR-006-to-010-stack-architecture.md)
-- [ADR-008: MLflow](../adr/ADR-006-to-010-stack-architecture.md)
-- [ADR-009: LLM Hybride](../adr/ADR-006-to-010-stack-architecture.md)
-- [ADR-010: Voice Engine](../adr/ADR-006-to-010-stack-architecture.md)
+- [ADR-009: Stack Frontend](../architecture/decision-records/ADR-009-frontend-nextjs-stack.md)
+- [ADR-010: Multi-Tenancy (redondant avec ADR-008)](../architecture/decision-records/ADR-010-multi-tenancy-phase2-redondant.md)
+- [ADR-011: MLflow](../architecture/decision-records/ADR-011-mlflow-model-registry.md)
+- [ADR-012: LLM Hybride (redondant et incomplet vs ADR-007)](../architecture/decision-records/ADR-012-hybrid-llm-redondant-incomplet.md)
+- [ADR-013: Voice Engine](../architecture/decision-records/ADR-013-voice-engine-webrtc.md)
+- [ADR-014: Multi-Tenancy schema-per-org (REJETÉ, contredit ADR-008)](../architecture/decision-records/ADR-014-multi-tenancy-schema-per-org-rejete.md)
 
 ---
 
-**Statut:** ✅ PHASE 0 COMPLÉTÉE  
-**Prochaine phase:** PHASE 1 — Design System  
-**Date:** 2025-01-XX
+**Statut:** ✅ PHASE 0 COMPLÉTÉE (audit indépendant — voir note de réconciliation ci-dessus)
+**Prochaine phase:** roadmap originale — Phase 15 (analytics), voir `phase-0-audit-v2.md`
+**Date:** 2025-01-XX (document original) / réconcilié 2026-09-13
