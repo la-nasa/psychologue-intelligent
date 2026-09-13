@@ -1,0 +1,16 @@
+## NOTE (2026-09-13) : ce fichier n'est PAS honoré par `railway up`/`--path-as-root`
+## (déploiement par upload CLI) — vérifié empiriquement (dockerfilePath et
+## startCommand restaient à leurs valeurs auto-détectées malgré ce fichier).
+## Il ne s'appliquerait que si ce service passait un jour en déploiement
+## connecté à GitHub (`railway service source connect`). La commande de
+## démarrage réelle (migrations + bootstrap + uvicorn) vit donc dans le `CMD`
+## du `Dockerfile` lui-même, pas ici.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+healthcheckPath = "/health/live"
+healthcheckTimeout = 100
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3

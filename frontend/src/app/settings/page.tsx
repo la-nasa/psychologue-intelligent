@@ -1,12 +1,92 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Bell, Shield, Eye, Volume2, Globe, Key } from "lucide-react"
+import { ApiError, clearToken, ConsentItem, ConsentPurpose, getToken, grantConsent, listConsents, revokeConsent } from "@/lib/api"
+
+const CONSENT_LABELS: Record<ConsentPurpose, { label: string; description: string }> = {
+  CARE: { label: "Suivi thérapeutique (CARE)", description: "Nécessaire pour utiliser l'assistant et le suivi clinique." },
+  LEARNING: { label: "Apprentissage continu", description: "Autoriser l'utilisation anonymisée et revue par un clinicien pour améliorer le modèle." },
+  AI_EXTERNAL: { label: "IA externe (cloud)", description: "Autoriser l'envoi de messages complexes à un fournisseur externe (Anthropic/OpenAI) plutôt qu'au modèle local uniquement." },
+  VOICE: { label: "Sessions vocales", description: "Autoriser l'enregistrement et le traitement de votre voix (fonctionnalité pas encore disponible)." },
+  ANALYTICS: { label: "Analyses anonymes", description: "Contribuer aux statistiques d'usage anonymisées du produit." },
+  RESEARCH: { label: "Recherche", description: "Autoriser l'utilisation de données dé-identifiées à des fins de recherche." },
+}
+
+function ConsentSection() {
+  const [authed, setAuthed] = useState<boolean | null>(null)
+  const [consents, setConsents] = useState<ConsentItem[]>([])
+  const [error, setError] = useState<string | null>(null)
+
+  const refresh = () => {
+    listConsents()
+      .then(setConsents)
+      .catch((err) => {
+        if (err instanceof ApiError && err.status === 401) {
+          clearToken()
+          setAuthed(false)
+        } else {
+          setError("Impossible de charger les consentements.")
+        }
+      })
+  }
+
+  useEffect(() => {
+    if (!getToken()) {
+      setAuthed(false)
+      return
+    }
+    setAuthed(true)
+    refresh()
+  }, [])
+
+  const toggle = async (purpose: ConsentPurpose, active: boolean) => {
+    try {
+      if (active) await revokeConsent(purpose)
+      else await grantConsent(purpose)
+      refresh()
+    } catch {
+      setError("Impossible de mettre à jour ce consentement.")
+    }
+  }
+
+  if (authed === false) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        <Link href="/login" className="underline">
+          Connectez-vous
+        </Link>{" "}
+        pour gérer vos consentements.
+      </p>
+    )
+  }
+
+  const isActive = (purpose: ConsentPurpose) => consents.find((c) => c.purpose === purpose)?.active ?? false
+
+  return (
+    <div className="space-y-4">
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      {(Object.keys(CONSENT_LABELS) as ConsentPurpose[]).map((purpose, i) => (
+        <div key={purpose}>
+          {i > 0 && <Separator className="mb-4" />}
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{CONSENT_LABELS[purpose].label}</Label>
+              <p className="text-sm text-muted-foreground">{CONSENT_LABELS[purpose].description}</p>
+            </div>
+            <Switch checked={isActive(purpose)} onCheckedChange={() => toggle(purpose, isActive(purpose))} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function SettingsPage() {
   const [notifications, setNotifications] = useState({
@@ -16,13 +96,6 @@ export default function SettingsPage() {
     dailyReminder: true,
     weeklyReport: true,
     alertNotifications: true,
-  })
-
-  const [privacy, setPrivacy] = useState({
-    shareDataWithClinician: true,
-    allowAiLearning: false,
-    showProgressToClinician: true,
-    anonymousAnalytics: true,
   })
 
   const [accessibility, setAccessibility] = useState({
@@ -60,7 +133,9 @@ export default function SettingsPage() {
               <Bell className="h-5 w-5 text-primary" />
               <CardTitle>Notifications</CardTitle>
             </div>
-            <CardDescription>Gérez comment vous recevez les notifications</CardDescription>
+            <CardDescription>
+              Préférences locales à ce navigateur — pas encore reliées au service de notifications réel
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -140,86 +215,30 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Privacy */}
+        {/* Privacy — branché sur le vrai système de consentement (server/app/api/account.py) */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Shield className="h-5 w-5 text-primary" />
               <CardTitle>Confidentialité</CardTitle>
             </div>
-            <CardDescription>Contrôlez vos données et leur utilisation</CardDescription>
+            <CardDescription>Consentements par finalité, versionnés et révocables à tout moment</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Partager avec le clinicien</Label>
-                <p className="text-sm text-muted-foreground">
-                  Votre psychologue peut voir vos conversations
-                </p>
-              </div>
-              <Switch
-                checked={privacy.shareDataWithClinician}
-                onCheckedChange={(checked) =>
-                  setPrivacy({ ...privacy, shareDataWithClinician: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Apprentissage IA</Label>
-                <p className="text-sm text-muted-foreground">
-                  Autoriser l'utilisation anonymisée pour améliorer l'IA
-                </p>
-              </div>
-              <Switch
-                checked={privacy.allowAiLearning}
-                onCheckedChange={(checked) =>
-                  setPrivacy({ ...privacy, allowAiLearning: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Afficher la progression</Label>
-                <p className="text-sm text-muted-foreground">
-                  Montrer vos objectifs et progrès au clinicien
-                </p>
-              </div>
-              <Switch
-                checked={privacy.showProgressToClinician}
-                onCheckedChange={(checked) =>
-                  setPrivacy({ ...privacy, showProgressToClinician: checked })
-                }
-              />
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label>Analyses anonymes</Label>
-                <p className="text-sm text-muted-foreground">
-                  Contribuer aux statistiques d'usage anonymisées
-                </p>
-              </div>
-              <Switch
-                checked={privacy.anonymousAnalytics}
-                onCheckedChange={(checked) =>
-                  setPrivacy({ ...privacy, anonymousAnalytics: checked })
-                }
-              />
-            </div>
+          <CardContent>
+            <ConsentSection />
           </CardContent>
         </Card>
 
-        {/* Accessibility */}
+        {/* Accessibility — préférences locales uniquement, pas encore de backend dédié */}
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
               <Eye className="h-5 w-5 text-primary" />
               <CardTitle>Accessibilité</CardTitle>
             </div>
-            <CardDescription>Améliorez l'accessibilité de l'interface</CardDescription>
+            <CardDescription>
+              Améliorez l&apos;accessibilité de l&apos;interface (préférences locales à ce navigateur pour l&apos;instant)
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
@@ -254,9 +273,9 @@ export default function SettingsPage() {
             <Separator />
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Lecteur d'écran</Label>
+                <Label>Lecteur d&apos;écran</Label>
                 <p className="text-sm text-muted-foreground">
-                  Optimisé pour les lecteurs d'écran
+                  Optimisé pour les lecteurs d&apos;écran
                 </p>
               </div>
               <Switch
@@ -291,14 +310,16 @@ export default function SettingsPage() {
               <Volume2 className="h-5 w-5 text-primary" />
               <CardTitle>Vocal</CardTitle>
             </div>
-            <CardDescription>Paramètres des sessions vocales</CardDescription>
+            <CardDescription>
+              Paramètres des sessions vocales — le moteur vocal lui-même n&apos;est pas encore implémenté (Phase 11)
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
                 <Label>Lecture automatique</Label>
                 <p className="text-sm text-muted-foreground">
-                  Lire automatiquement les réponses de l'IA
+                  Lire automatiquement les réponses de l&apos;IA
                 </p>
               </div>
               <Switch
@@ -333,20 +354,20 @@ export default function SettingsPage() {
               <Key className="h-5 w-5 text-primary" />
               <CardTitle>Sécurité</CardTitle>
             </div>
-            <CardDescription>Gérez la sécurité de votre compte</CardDescription>
+            <CardDescription>Ces actions existent côté API mais n&apos;ont pas encore d&apos;écran dédié ici</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <Button variant="outline" className="w-full justify-start">
+            <Button variant="outline" className="w-full justify-start" disabled>
               <Key className="mr-2 h-4 w-4" />
-              Changer le mot de passe
+              Changer le mot de passe (à venir)
             </Button>
-            <Button variant="outline" className="w-full justify-start">
+            <Button variant="outline" className="w-full justify-start" disabled>
               <Shield className="mr-2 h-4 w-4" />
-              Activer l'authentification à deux facteurs
+              Activer l&apos;authentification à deux facteurs (API prête : /auth/mfa/enroll — écran à venir)
             </Button>
-            <Button variant="outline" className="w-full justify-start">
+            <Button variant="outline" className="w-full justify-start" disabled>
               <Globe className="mr-2 h-4 w-4" />
-              Gérer les sessions actives
+              Gérer les sessions actives (à venir)
             </Button>
           </CardContent>
         </Card>
