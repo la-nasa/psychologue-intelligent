@@ -5,8 +5,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Badge } from "@/components/ui/badge"
-import { Send, Mic, StopCircle, Paperclip } from "lucide-react"
+import { Send } from "lucide-react"
 import { ApiError, clearToken, getToken, startConversation, streamMessage } from "@/lib/api"
 
 interface Message {
@@ -26,7 +25,6 @@ export default function ConversationPage() {
 
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
-  const [isRecording, setIsRecording] = useState(false)
   const [isStreaming, setIsStreaming] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const streamAbort = useRef<AbortController | null>(null)
@@ -44,7 +42,7 @@ export default function ConversationPage() {
           {
             id: "welcome",
             role: "assistant",
-            content: "Bonjour ! Comment vous sentez-vous aujourd'hui ? Je suis là pour vous écouter.",
+            content: "Bonjour. Comment vous sentez-vous aujourd'hui ? Je suis là pour vous écouter.",
             timestamp: new Date(),
           },
         ])
@@ -60,6 +58,10 @@ export default function ConversationPage() {
 
     return () => streamAbort.current?.abort()
   }, [])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages])
 
   const handleSend = async () => {
     const text = inputValue.trim()
@@ -116,15 +118,7 @@ export default function ConversationPage() {
     }
   }
 
-  const toggleRecording = () => {
-    setIsRecording(!isRecording)
-    // Capture micro réelle : hors périmètre de ce câblage (voir ADR-013, Phase 11 non commencée).
-  }
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    // onKeyPress est déprécié et ne se déclenche plus de façon fiable pour
-    // Enter dans certains navigateurs/automations — onKeyDown est l'équivalent
-    // moderne (trouvé en testant le déploiement réel, 2026-09-13).
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       handleSend()
@@ -138,7 +132,7 @@ export default function ConversationPage() {
   if (authState === "anonymous") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour discuter avec l&apos;assistant.</p>
+        <p className="text-sm text-muted-foreground">Connectez-vous pour discuter avec votre assistant.</p>
         <Button asChild>
           <Link href="/login">Se connecter</Link>
         </Button>
@@ -147,54 +141,40 @@ export default function ConversationPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      {/* Header */}
-      <div className="border-b p-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold">Conversation</h2>
-            <p className="text-sm text-muted-foreground">Session en cours</p>
-          </div>
-          <Badge variant="secondary">Texte</Badge>
-        </div>
-      </div>
-
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
       {setupError && (
         <p className="border-b bg-destructive/10 p-2 text-center text-sm text-destructive">{setupError}</p>
       )}
 
-      {/* Messages */}
-      <ScrollArea className="flex-1 p-4" ref={scrollRef}>
-        <div className="space-y-4">
+      <ScrollArea className="flex-1 px-4 py-6 md:px-0" ref={scrollRef}>
+        <div className="space-y-5">
           {messages.map((message) => (
-            <div
-              key={message.id}
-              className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-            >
+            <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[80%] rounded-lg p-3 ${
+                className={`max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
                   message.role === "user"
                     ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                    : "border bg-card"
                 }`}
               >
-                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
-                <p className="mt-1 text-xs opacity-70">
-                  {message.timestamp.toLocaleTimeString("fr-FR", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p
+                  className={`mt-1 text-[11px] tabular-nums ${
+                    message.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"
+                  }`}
+                >
+                  {message.timestamp.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
                 </p>
               </div>
             </div>
           ))}
           {isStreaming && (
             <div className="flex justify-start">
-              <div className="max-w-[80%] rounded-lg bg-muted p-3">
-                <div className="flex space-x-2">
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" />
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "0.2s" }} />
-                  <div className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground" style={{ animationDelay: "0.4s" }} />
+              <div className="max-w-[85%] rounded-xl border bg-card px-4 py-3">
+                <div className="flex gap-1.5">
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0.15s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0.3s]" />
                 </div>
               </div>
             </div>
@@ -202,35 +182,28 @@ export default function ConversationPage() {
         </div>
       </ScrollArea>
 
-      {/* Input */}
-      <div className="border-t p-4">
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={toggleRecording}
-            className={isRecording ? "text-red-600" : ""}
-          >
-            {isRecording ? <StopCircle className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </Button>
-          <Button variant="outline" size="icon">
-            <Paperclip className="h-5 w-5" />
-          </Button>
+      <div className="border-t px-4 py-4 md:px-0">
+        <div className="flex items-center gap-2 rounded-xl border bg-card p-1.5 shadow-soft transition-colors focus-within:border-primary/40">
           <Input
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Écrivez votre message..."
-            className="flex-1"
+            placeholder="Écrivez ce que vous ressentez…"
             disabled={!conversationId || isStreaming}
+            className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
-          <Button onClick={handleSend} size="icon" disabled={!conversationId || isStreaming}>
-            <Send className="h-5 w-5" />
+          <Button
+            onClick={handleSend}
+            size="icon"
+            disabled={!conversationId || isStreaming || !inputValue.trim()}
+            aria-label="Envoyer"
+          >
+            <Send className="h-4 w-4" strokeWidth={1.75} />
           </Button>
         </div>
-        {isRecording && (
-          <p className="mt-2 text-center text-sm text-muted-foreground">Enregistrement en cours...</p>
-        )}
+        <p className="mt-2 px-1 text-center text-xs text-muted-foreground">
+          Cet espace est confidentiel. En cas d&apos;urgence, contactez les secours (15, 112) ou le 3114.
+        </p>
       </div>
     </div>
   )

@@ -6,15 +6,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { AlertTriangle, Bell, CheckCircle } from "lucide-react"
+import { ShieldAlert, BellRing, CheckCircle } from "lucide-react"
 import { ApiError, ClinicianAlertItem, clearToken, getToken, listClinicianAlerts } from "@/lib/api"
 
 type ViewState = "checking" | "anonymous" | "forbidden" | "ready" | "error"
 
-const SEVERITY_STYLE: Record<string, string> = {
-  RED: "bg-red-100 text-red-800",
-  ORANGE: "bg-orange-100 text-orange-800",
-  GREEN: "bg-green-100 text-green-800",
+const SEVERITY_VARIANT: Record<string, "destructive" | "warning" | "success" | "secondary"> = {
+  RED: "destructive",
+  ORANGE: "warning",
+  GREEN: "success",
 }
 
 export default function AlertsPage() {
@@ -60,12 +60,11 @@ export default function AlertsPage() {
 
   if (state === "forbidden") {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <AlertTriangle className="h-8 w-8 text-muted-foreground" />
+      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+        <ShieldAlert className="h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
         <p className="max-w-md text-sm text-muted-foreground">
-          Ce centre d&apos;alertes est réservé aux rôles clinicien (PSYCHOLOGIST / CLINICAL_SUPERVISOR). Votre compte
-          patient n&apos;y a pas accès — c&apos;est le comportement attendu du contrôle d&apos;accès côté serveur,
-          pas une erreur.
+          Ce centre d&apos;alertes est réservé aux cliniciens référents. Votre compte patient n&apos;y a pas
+          accès — c&apos;est le comportement attendu, pas une erreur.
         </p>
       </div>
     )
@@ -80,35 +79,35 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="border-b p-6">
-        <h2 className="text-2xl font-bold tracking-tight">Centre d&apos;alertes</h2>
-        <p className="text-muted-foreground">Alertes de sécurité et de suivi pour vos patients</p>
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
+      <div className="space-y-1 px-6 pb-4 pt-8 md:pt-10">
+        <h1 className="text-2xl font-semibold tracking-tight">Centre d&apos;alertes</h1>
+        <p className="text-sm text-muted-foreground">Alertes de sécurité et de suivi pour vos patients référés.</p>
       </div>
 
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="flex-1 px-6 pb-8">
         {alerts.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune alerte.</p>
+          <div className="rounded-lg border border-dashed p-10 text-center">
+            <BellRing className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
+            <p className="text-sm text-muted-foreground">Aucune alerte active.</p>
+          </div>
         ) : (
-          <div className="space-y-4">
+          <div className="space-y-3">
             {alerts.map((alert) => (
               <Card key={alert.id}>
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <Bell className="h-5 w-5 text-muted-foreground" />
-                      <div>
-                        <CardTitle className="text-base">Patient {alert.patient_id.slice(0, 8)}…</CardTitle>
-                        <CardDescription>
-                          Source : {alert.source}
-                          {alert.score !== null ? ` · score ${alert.score}` : ""}
-                        </CardDescription>
-                      </div>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base">Patient {alert.patient_id.slice(0, 8)}…</CardTitle>
+                      <CardDescription>
+                        {alert.source}
+                        {alert.score !== null ? ` · score ${alert.score}` : ""}
+                      </CardDescription>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge className={SEVERITY_STYLE[alert.level] ?? ""}>{alert.level}</Badge>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Badge variant={SEVERITY_VARIANT[alert.level] ?? "secondary"}>{alert.level}</Badge>
                       <Badge variant="outline">
-                        <CheckCircle className="mr-1 h-3 w-3" />
+                        <CheckCircle className="h-3 w-3" strokeWidth={1.75} />
                         {alert.status}
                       </Badge>
                     </div>

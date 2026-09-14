@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { MessageCircle, Search } from "lucide-react"
+import { History, Search } from "lucide-react"
 import { ApiError, clearToken, getToken, listMessages, MessageItem, startConversation } from "@/lib/api"
 
 export default function HistoryPage() {
@@ -51,23 +50,19 @@ export default function HistoryPage() {
   const filtered = messages.filter((m) => m.content.toLowerCase().includes(searchTerm.toLowerCase()))
 
   return (
-    <div className="flex h-full flex-col overflow-auto">
-      {/* Header */}
-      <div className="border-b p-6">
-        <h2 className="text-2xl font-bold tracking-tight">Historique</h2>
-        <p className="text-muted-foreground">
-          Messages de votre conversation en cours. Le découpage par session avec résumé et humeur (vu dans les
-          premières maquettes de cette page) n&apos;existe pas encore côté serveur — une seule conversation active
-          par patient est modélisée pour l&apos;instant.
-        </p>
-      </div>
-
-      {/* Filters */}
-      <div className="border-b p-4">
+    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
+      <div className="space-y-4 px-6 pb-4 pt-8 md:pt-10">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">Historique</h1>
+          <p className="text-sm text-muted-foreground">
+            Messages de votre conversation en cours. Le regroupement par session arrivera avec une prochaine mise à
+            jour — une seule conversation active est suivie pour l&apos;instant.
+          </p>
+        </div>
         <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
           <Input
-            placeholder="Rechercher dans les messages..."
+            placeholder="Rechercher dans les messages…"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9"
@@ -75,33 +70,33 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* Content */}
-      <ScrollArea className="flex-1 p-6">
+      <ScrollArea className="flex-1 px-6 pb-8">
         {loading ? (
           <p className="text-sm text-muted-foreground">Chargement…</p>
         ) : error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : filtered.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun message pour le moment.</p>
+          <div className="rounded-lg border border-dashed p-10 text-center">
+            <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
+            <p className="text-sm text-muted-foreground">Aucun message pour le moment.</p>
+          </div>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y">
             {filtered.map((m) => (
-              <Card key={m.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
-                  <div className="flex items-center gap-2">
-                    <MessageCircle className="h-4 w-4 text-muted-foreground" />
-                    <Badge variant={m.author_type === "PATIENT" ? "secondary" : "outline"}>
-                      {m.author_type === "PATIENT" ? "Vous" : "Assistant"}
-                    </Badge>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(m.created_at).toLocaleString("fr-FR")}
-                  </span>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  <p className="text-sm whitespace-pre-wrap">{m.content}</p>
-                </CardContent>
-              </Card>
+              <div key={m.id} className="flex gap-4 py-4">
+                <Badge
+                  variant={m.author_type === "PATIENT" ? "secondary" : "outline"}
+                  className="h-fit shrink-0"
+                >
+                  {m.author_type === "PATIENT" ? "Vous" : "Assistant"}
+                </Badge>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <p className="whitespace-pre-wrap text-sm">{m.content}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date(m.created_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+              </div>
             ))}
           </div>
         )}
