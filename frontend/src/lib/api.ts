@@ -106,6 +106,28 @@ export async function getMe(): Promise<MeResponse> {
   return request<MeResponse>("/api/v1/me")
 }
 
+/** Route d'atterrissage après connexion, selon le rôle le plus « élevé » du compte. */
+export function landingPathForRoles(roles: string[]): string {
+  if (roles.includes("PSYCHOLOGIST") || roles.includes("CLINICAL_SUPERVISOR")) return "/clinician"
+  if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) return "/admin"
+  return "/conversation"
+}
+
+// --- MFA (server/app/api/auth.py) ---
+
+export interface MfaEnrollment {
+  secret: string
+  otpauth_uri: string
+}
+
+export async function enrollMfa(): Promise<MfaEnrollment> {
+  return request<MfaEnrollment>("/api/v1/auth/mfa/enroll", { method: "POST" })
+}
+
+export async function activateMfa(code: string): Promise<void> {
+  await request<void>("/api/v1/auth/mfa/activate", { method: "POST", body: JSON.stringify({ code }) })
+}
+
 export interface ConversationResponse {
   id: string
   status: string
@@ -215,6 +237,46 @@ export async function revokeConsent(purpose: ConsentPurpose): Promise<void> {
   await request<void>("/api/v1/consents/revoke", { method: "POST", body: JSON.stringify({ purpose }) })
 }
 
+// --- PHQ-9 (server/app/api/assessment.py) ---
+
+export interface Phq9SubmitResult {
+  id: string
+  instrument_version: string
+  total_score: number
+  item9_score: number
+  severity_band: string
+  alert_level: string | null
+  alert_created: boolean
+}
+
+export async function submitPhq9(answers: number[]): Promise<Phq9SubmitResult> {
+  return request<Phq9SubmitResult>("/api/v1/assessments/phq9", { method: "POST", body: JSON.stringify({ answers }) })
+}
+
+export interface Phq9HistoryItem {
+  id: string
+  total_score: number
+  item9_score: number
+  severity_band: string
+  completed_at: string
+}
+
+export async function getPhq9History(): Promise<Phq9HistoryItem[]> {
+  const res = await request<{ items: Phq9HistoryItem[] }>("/api/v1/assessments/phq9")
+  return res.items
+}
+
+export interface Phq9Trend {
+  latest: Phq9HistoryItem | null
+  previous: Phq9HistoryItem | null
+  delta: number | null
+  direction: "improving" | "worsening" | "stable" | "first" | "no_data"
+}
+
+export async function getPhq9Trend(): Promise<Phq9Trend> {
+  return request<Phq9Trend>("/api/v1/assessments/phq9/trend")
+}
+
 // --- Alertes cliniciennes (server/app/api/clinician.py — PSYCHOLOGIST/CLINICAL_SUPERVISOR uniquement) ---
 
 export interface ClinicianAlertItem {
@@ -231,9 +293,291 @@ export interface ClinicianAlertItem {
   acknowledged_at: string | null
 }
 
-export async function listClinicianAlerts(): Promise<ClinicianAlertItem[]> {
-  const res = await request<{ items: ClinicianAlertItem[] }>("/api/v1/clinician/alerts")
+export async function listClinicianAlerts(level?: string, status?: string): Promise<ClinicianAlertItem[]> {
+  const params = new URLSearchParams()
+  if (level) params.set("level", level)
+  if (status) params.set("status", status)
+  const qs = params.toString()
+  const res = await request<{ items: ClinicianAlertItem[] }>(`/api/v1/clinician/alerts${qs ? `?${qs}` : ""}`)
   return res.items
+}
+
+export type AlertActionTarget = "ACKNOWLEDGED" | "IN_REVIEW" | "ESCALATED" | "RESOLVED" | "CANCELLED"
+
+export async function actOnAlert(
+  alertId: string,
+  target: AlertActionTarget,
+  justification = "",
+): Promise<ClinicianAlertItem> {
+  return request<ClinicianAlertItem>(`/api/v1/clinician/alerts/${alertId}/actions`, {
+    method: "POST",
+    body: JSON.stringify({ target, justification }),
+  })
+}
+
+// --- Plateforme clinicien (server/app/api/clinician.py) ---
+
+export interface ClinicianOverview {
+  patients_followed: number
+  open_alerts: { total: number; red: number; orange: number }
+  sla_breached: number
+  assigned_to_me: number
+  generated_at: string
+}
+
+export async function getClinicianOverview(): Promise<ClinicianOverview> {
+  return request<ClinicianOverview>("/api/v1/clinician/overview")
+}
+
+export interface ClinicianPatientItem {
+  patient_id: string
+  display_name: string
+  latest_phq9: {
+    total_score: number
+    item9_score: number
+    severity_band: string
+    completed_at: string
+  } | null
+  open_alert_count: number
+}
+
+export async function listClinicianPatients(): Promise<ClinicianPatientItem[]> {
+  const res = await request<{ items: ClinicianPatientItem[] }>("/api/v1/clinician/patients")
+  return res.items
+}
+
+export interface AlertActionEntry {
+  id: string
+  alert_id: string
+  actor_id: string | null
+  action: string
+  justification: string
+  created_at: string
+}
+
+export interface PatientTimeline {
+  patient_id: string
+  display_name: string
+  phq9_history: Phq9HistoryItem[]
+  phq9_trend: Phq9Trend
+  alerts: ClinicianAlertItem[]
+  alert_actions: AlertActionEntry[]
+}
+
+export async function getPatientTimeline(patientId: string): Promise<PatientTimeline> {
+  return request<PatientTimeline>(`/api/v1/clinician/patients/${patientId}/timeline`)
+}
+
+export interface EvidenceRef {
+  type: string
+  id: string
+}
+
+export interface SummaryStatement {
+  key: string
+  category: "assessment" | "safety" | "risk" | "engagement" | "goals" | "consent"
+  text: string
+  evidence: EvidenceRef[]
+  as_of: string | null
+}
+
+export interface PatientSummary {
+  patient_id: string
+  generated_at: string
+  disclaimer: string
+  statements: SummaryStatement[]
+}
+
+export async function getPatientSummary(patientId: string): Promise<PatientSummary> {
+  return request<PatientSummary>(`/api/v1/clinician/patients/${patientId}/summary`)
+}
+
+export interface Patient360 {
+  patient_id: string
+  display_name: string
+  consents: ConsentItem[]
+  summary: PatientSummary
+  goals: { id: string; title: string; status: string; created_at: string }[]
+  phq9_history: Phq9HistoryItem[]
+  phq9_trend: Phq9Trend
+  alerts: ClinicianAlertItem[]
+  alert_actions: AlertActionEntry[]
+}
+
+export async function getPatient360(patientId: string): Promise<Patient360> {
+  return request<Patient360>(`/api/v1/clinician/patients/${patientId}/360`)
+}
+
+// --- Revue IA clinicienne (server/app/api/ai_review.py) ---
+
+export interface ReviewableMessage {
+  message_id: string
+  conversation_id: string
+  assistant_response: string
+  patient_message: string | null
+  generation_path: string
+  model_version: string | null
+  created_at: string
+  reviewed: boolean
+  reviewed_by_me: boolean
+}
+
+/** Les 7 dimensions notées 1..5 (server/app/application/ai_review.py SCORE_DIMENSIONS). */
+export const AI_REVIEW_SCORE_DIMENSIONS = [
+  "empathy",
+  "relevance",
+  "personalization",
+  "context",
+  "safety",
+  "clarity",
+  "usefulness",
+] as const
+
+export async function listReviewableMessages(patientId: string): Promise<ReviewableMessage[]> {
+  const res = await request<{ items: ReviewableMessage[] }>(`/api/v1/clinician/ai-review/patients/${patientId}/messages`)
+  return res.items
+}
+
+export type AiReviewDecision = "APPROVE" | "EDIT" | "REJECT" | "FLAG_SAFETY"
+export type AiReviewFeedbackCategory =
+  | "TONE"
+  | "CLINICAL_ACCURACY"
+  | "PERSONALIZATION"
+  | "CONTEXT_UNDERSTANDING"
+  | "SAFETY"
+  | "RELEVANCE"
+  | "OTHER"
+
+export interface AiReviewSubmission {
+  decision: AiReviewDecision
+  scores: Record<string, number>
+  feedback_category: AiReviewFeedbackCategory
+  corrected_response?: string
+  clinical_comment?: string
+}
+
+export async function submitAiReview(messageId: string, body: AiReviewSubmission): Promise<{ id: string }> {
+  return request<{ id: string }>(`/api/v1/clinician/ai-review/messages/${messageId}/review`, {
+    method: "POST",
+    body: JSON.stringify({ corrected_response: "", clinical_comment: "", ...body }),
+  })
+}
+
+export interface AiReviewItem {
+  id: string
+  decision: AiReviewDecision
+  scores: Record<string, number>
+  feedback_category: string
+  corrected_response: string | null
+  clinical_comment: string | null
+  model_version: string | null
+  created_at: string
+}
+
+export async function getReviewsForMessage(messageId: string): Promise<AiReviewItem[]> {
+  const res = await request<{ items: AiReviewItem[] }>(`/api/v1/clinician/ai-review/messages/${messageId}/reviews`)
+  return res.items
+}
+
+export interface QualityReport {
+  model_version: string | null
+  review_count: number
+  by_decision: Record<AiReviewDecision, number>
+  by_feedback_category: Record<string, number>
+  mean_scores: Record<string, number | null>
+  approval_rate: number | null
+}
+
+export async function getQualityReport(modelVersion?: string, since?: string): Promise<QualityReport> {
+  const params = new URLSearchParams()
+  if (modelVersion) params.set("model_version", modelVersion)
+  if (since) params.set("since", since)
+  const qs = params.toString()
+  return request<QualityReport>(`/api/v1/clinician/ai-review/quality-report${qs ? `?${qs}` : ""}`)
+}
+
+export interface SafetyFlagItem {
+  id: string
+  message_id: string
+  model_version: string | null
+  feedback_category: string
+  clinical_comment: string | null
+  created_at: string
+}
+
+export async function getSafetyFlags(since?: string): Promise<SafetyFlagItem[]> {
+  const params = new URLSearchParams()
+  if (since) params.set("since", since)
+  const qs = params.toString()
+  const res = await request<{ items: SafetyFlagItem[] }>(`/api/v1/clinician/ai-review/safety-flags${qs ? `?${qs}` : ""}`)
+  return res.items
+}
+
+// --- Console admin (server/app/api/admin.py) ---
+
+export interface AdminUserItem {
+  id: string
+  email: string
+  display_name: string
+  roles: string[]
+  status: string
+}
+
+export async function listAdminUsers(role?: string): Promise<AdminUserItem[]> {
+  const qs = role ? `?role=${encodeURIComponent(role)}` : ""
+  const res = await request<{ items: AdminUserItem[] }>(`/api/v1/admin/users${qs}`)
+  return res.items
+}
+
+export interface RelationshipItem {
+  id: string
+  patient_id: string
+  clinician_id: string
+  status: string
+  created_at: string
+  ended_at: string | null
+}
+
+export async function listRelationships(activeOnly = false): Promise<RelationshipItem[]> {
+  const res = await request<{ items: RelationshipItem[] }>(
+    `/api/v1/admin/relationships${activeOnly ? "?active_only=true" : ""}`,
+  )
+  return res.items
+}
+
+export async function createRelationship(patientId: string, clinicianId: string): Promise<{ id: string }> {
+  return request<{ id: string }>("/api/v1/admin/relationships", {
+    method: "POST",
+    body: JSON.stringify({ patient_id: patientId, clinician_id: clinicianId }),
+  })
+}
+
+export async function endRelationship(relationshipId: string): Promise<void> {
+  await request<void>(`/api/v1/admin/relationships/${relationshipId}`, { method: "DELETE" })
+}
+
+export interface ChannelItem {
+  id: string
+  name: string
+  kind: string
+  is_active: boolean
+  target_hint: string
+}
+
+export async function listChannels(): Promise<ChannelItem[]> {
+  const res = await request<{ items: ChannelItem[] }>("/api/v1/admin/notification-channels")
+  return res.items
+}
+
+export async function createChannel(
+  name: string,
+  kind: "email" | "sms" | "push" | "log",
+  target: string,
+): Promise<{ id: string }> {
+  return request<{ id: string }>("/api/v1/admin/notification-channels", {
+    method: "POST",
+    body: JSON.stringify({ name, kind, target }),
+  })
 }
 
 // Miroir des événements yield par `server/app/application/conversation.py::stream_turn`.

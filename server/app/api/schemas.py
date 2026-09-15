@@ -159,6 +159,14 @@ class RelationshipItem(BaseModel):
     ended_at: str | None = None
 
 
+class AdminUserItem(BaseModel):
+    id: str
+    email: str
+    display_name: str
+    roles: list[str]
+    status: str
+
+
 class AlertActionRequest(BaseModel):
     target: Literal["ACKNOWLEDGED", "IN_REVIEW", "ESCALATED", "RESOLVED", "CANCELLED"]
     justification: str = Field(default="", max_length=2000)

@@ -5,7 +5,13 @@ import uuid
 from fastapi import APIRouter, Response, status
 
 from app.api.deps import CurrentPrincipal, RequestId
-from app.api.schemas import ChannelCreateRequest, ChannelItem, RelationshipCreateRequest, RelationshipItem
+from app.api.schemas import (
+    AdminUserItem,
+    ChannelCreateRequest,
+    ChannelItem,
+    RelationshipCreateRequest,
+    RelationshipItem,
+)
 from app.application import channels, relationships
 from app.application.rbac import require_role
 from app.core.db import tenant_session
@@ -33,6 +39,20 @@ async def create_channel(
             name=body.name, kind=body.kind, target=body.target, request_id=request_id,
         )
     return {"id": str(channel_id)}
+
+
+# --- Annuaire (pour choisir un patient / clinicien sans connaître son UUID) ---
+
+
+@router.get("/users", response_model=dict[str, list[AdminUserItem]])
+async def list_users(principal: CurrentPrincipal, role: str | None = None) -> dict:
+    require_role(principal, *_ADMIN_ROLES)
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        return {
+            "items": await relationships.list_users(
+                session, organization_id=principal.organization_id, role=role
+            )
+        }
 
 
 # --- Phase 12 : relations patient-clinicien (`admin.relationships.manage`) ---

@@ -13,9 +13,16 @@ import {
   Target,
   History,
   BellRing,
+  type LucideIcon,
 } from "lucide-react"
 
-const navigation = [
+export interface NavItem {
+  name: string
+  href: string
+  icon: LucideIcon
+}
+
+const navigation: NavItem[] = [
   { name: "Accueil", href: "/", icon: Home },
   { name: "Conversation", href: "/conversation", icon: MessageCircle },
   { name: "Voix", href: "/voice", icon: Mic },
@@ -24,7 +31,7 @@ const navigation = [
   { name: "Alertes", href: "/alerts", icon: BellRing },
 ]
 
-const accountNavigation = [
+const accountNavigation: NavItem[] = [
   { name: "Profil", href: "/profile", icon: User },
   { name: "Paramètres", href: "/settings", icon: Settings },
 ]
@@ -32,13 +39,17 @@ const accountNavigation = [
 interface SidebarProps {
   onNavigate?: () => void
   patientName?: string | null
+  navigation?: NavItem[]
+  accountNavigation?: NavItem[]
+  brandSubtitle?: string
+  identitySubtitle?: string
 }
 
-function NavList({ items, pathname, onNavigate }: { items: typeof navigation; pathname: string; onNavigate?: () => void }) {
+function NavList({ items, pathname, onNavigate }: { items: NavItem[]; pathname: string; onNavigate?: () => void }) {
   return (
     <nav className="grid gap-0.5 px-3">
       {items.map((item) => {
-        const isActive = pathname === item.href
+        const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(`${item.href}/`))
         return (
           <Link
             key={item.name}
@@ -68,21 +79,35 @@ function NavList({ items, pathname, onNavigate }: { items: typeof navigation; pa
   )
 }
 
-export function Sidebar({ onNavigate, patientName }: SidebarProps) {
+export function Sidebar({
+  onNavigate,
+  patientName,
+  navigation: navOverride,
+  accountNavigation: accountOverride,
+  brandSubtitle,
+  identitySubtitle,
+}: SidebarProps) {
   const pathname = usePathname()
+  const mainItems = navOverride ?? navigation
+  const accountItems = accountOverride ?? accountNavigation
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-card">
-      <div className="flex h-16 items-center border-b px-5">
+      <div className="flex h-16 flex-col justify-center border-b px-5">
         <Link href="/" className="flex items-baseline gap-2" onClick={onNavigate}>
           <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
           <span className="text-base font-semibold tracking-tight">Mensana</span>
         </Link>
+        {brandSubtitle && <span className="ml-3.5 text-[11px] text-muted-foreground">{brandSubtitle}</span>}
       </div>
       <div className="flex-1 overflow-auto py-5">
-        <NavList items={navigation} pathname={pathname} onNavigate={onNavigate} />
-        <div className="mx-5 my-4 border-t" />
-        <NavList items={accountNavigation} pathname={pathname} onNavigate={onNavigate} />
+        <NavList items={mainItems} pathname={pathname} onNavigate={onNavigate} />
+        {accountItems.length > 0 && (
+          <>
+            <div className="mx-5 my-4 border-t" />
+            <NavList items={accountItems} pathname={pathname} onNavigate={onNavigate} />
+          </>
+        )}
       </div>
       <div className="border-t p-4">
         <div className="flex items-center gap-3 rounded-md px-1 py-1">
@@ -91,7 +116,7 @@ export function Sidebar({ onNavigate, patientName }: SidebarProps) {
           </div>
           <div className="min-w-0 text-sm">
             <p className="truncate font-medium leading-tight">{patientName || "Votre espace"}</p>
-            <p className="text-xs text-muted-foreground">Connecté</p>
+            <p className="text-xs text-muted-foreground">{identitySubtitle ?? "Connecté"}</p>
           </div>
         </div>
       </div>

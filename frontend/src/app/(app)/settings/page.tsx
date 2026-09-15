@@ -5,8 +5,21 @@ import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
-import { KeyRound, ShieldCheck, Fingerprint, MonitorSmartphone } from "lucide-react"
-import { ApiError, clearToken, ConsentItem, ConsentPurpose, getToken, grantConsent, listConsents, revokeConsent } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { KeyRound, ShieldCheck, Fingerprint, MonitorSmartphone, Check } from "lucide-react"
+import {
+  ApiError,
+  activateMfa,
+  clearToken,
+  ConsentItem,
+  ConsentPurpose,
+  enrollMfa,
+  getToken,
+  grantConsent,
+  listConsents,
+  revokeConsent,
+} from "@/lib/api"
 
 const CONSENT_LABELS: Record<ConsentPurpose, { label: string; description: string }> = {
   CARE: { label: "Suivi thérapeutique", description: "Nécessaire pour utiliser l'assistant et le suivi clinique." },
@@ -101,6 +114,94 @@ function ConsentSection() {
           onCheckedChange={() => toggle(purpose, isActive(purpose))}
         />
       ))}
+    </div>
+  )
+}
+
+type MfaState = "idle" | "enrolling" | "pending_activation" | "active"
+
+function MfaSection() {
+  const [state, setState] = useState<MfaState>("idle")
+  const [secret, setSecret] = useState("")
+  const [otpauthUri, setOtpauthUri] = useState("")
+  const [code, setCode] = useState("")
+  const [error, setError] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+
+  const startEnrollment = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await enrollMfa()
+      setSecret(res.secret)
+      setOtpauthUri(res.otpauth_uri)
+      setState("pending_activation")
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        setState("active")
+      } else {
+        setError("Impossible de démarrer la configuration.")
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const activate = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      await activateMfa(code)
+      setState("active")
+    } catch {
+      setError("Code invalide. Vérifiez votre application d'authentification.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (state === "active") {
+    return (
+      <p className="flex items-center gap-2 py-2.5 text-sm text-success">
+        <Check className="h-4 w-4" strokeWidth={1.75} /> Authentification à deux facteurs activée.
+      </p>
+    )
+  }
+
+  if (state === "pending_activation") {
+    return (
+      <div className="space-y-3 rounded-md border p-4">
+        <p className="text-sm">
+          Ajoutez ce compte dans votre application d&apos;authentification (Google Authenticator, 1Password…), avec la
+          clé secrète ci-dessous, puis saisissez le code à 6 chiffres généré.
+        </p>
+        <div className="space-y-1">
+          <p className="break-all rounded-md bg-muted/50 px-3 py-2 font-mono text-xs">{secret}</p>
+          <p className="break-all text-xs text-muted-foreground">{otpauthUri}</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            placeholder="Code à 6 chiffres"
+            className="w-40"
+            maxLength={10}
+          />
+          <Button size="sm" onClick={activate} disabled={busy || code.length < 6}>
+            {busy ? "Vérification…" : "Activer"}
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2 py-2.5">
+      <Button size="sm" variant="outline" onClick={startEnrollment} disabled={busy}>
+        {busy ? "Un instant…" : "Configurer la 2FA"}
+      </Button>
+      {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   )
 }
@@ -206,15 +307,21 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <CardTitle>Sécurité</CardTitle>
-          <CardDescription>Disponible via l&apos;API ; l&apos;écran dédié arrive prochainement.</CardDescription>
+          <CardDescription>Protégez l&apos;accès à votre compte.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-1">
+        <CardContent className="divide-y">
+          <div className="space-y-1 py-2.5">
+            <div className="flex items-center gap-3 text-sm font-medium">
+              <Fingerprint className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+              Authentification à deux facteurs
+            </div>
+            <MfaSection />
+          </div>
           {[
             { icon: KeyRound, label: "Changer le mot de passe" },
-            { icon: Fingerprint, label: "Authentification à deux facteurs" },
             { icon: MonitorSmartphone, label: "Sessions actives" },
           ].map(({ icon: Icon, label }) => (
-            <div key={label} className="flex items-center gap-3 rounded-md px-1 py-2.5 text-sm text-muted-foreground">
+            <div key={label} className="flex items-center gap-3 px-1 py-2.5 text-sm text-muted-foreground">
               <Icon className="h-4 w-4" strokeWidth={1.75} />
               {label}
               <span className="ml-auto flex items-center gap-1 text-xs">

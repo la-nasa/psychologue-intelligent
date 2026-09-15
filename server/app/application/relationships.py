@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application import audit
 from app.core.errors import ConflictError, NotFoundError, PermissionDeniedError
-from app.infrastructure.models import PatientClinicianRelationship, Role, User, UserRole
+from app.infrastructure.models import PatientClinicianRelationship, Profile, Role, User, UserRole
 
 _CLINICIAN_ROLES = ("PSYCHOLOGIST", "CLINICAL_SUPERVISOR")
 
@@ -138,6 +138,46 @@ async def require_active_relationship(
 ) -> None:
     if not await has_active_relationship(session, clinician_id=clinician_id, patient_id=patient_id):
         raise PermissionDeniedError("no active relationship with this patient")
+
+
+async def list_users(
+    session: AsyncSession, *, organization_id: uuid.UUID, role: str | None = None
+) -> list[dict]:
+    """Annuaire des comptes de l'organisation, pour l'écran admin de gestion des
+    relations patient-clinicien (choisir un patient / un clinicien sans avoir à
+    connaître son UUID de mémoire)."""
+    stmt = (
+        select(User.id, User.email_normalized, User.status, Profile.display_name)
+        .outerjoin(Profile, Profile.user_id == User.id)
+        .where(User.organization_id == organization_id, User.deleted_at.is_(None))
+        .order_by(User.email_normalized)
+    )
+    rows = (await session.execute(stmt)).all()
+
+    roles_by_user: dict[uuid.UUID, list[str]] = {}
+    role_rows = await session.execute(
+        select(UserRole.user_id, Role.code)
+        .join(Role, Role.id == UserRole.role_id)
+        .where(UserRole.organization_id == organization_id)
+    )
+    for user_id, code in role_rows.all():
+        roles_by_user.setdefault(user_id, []).append(code)
+
+    users: list[dict] = []
+    for user_id, email, status, display_name in rows:
+        user_roles = sorted(roles_by_user.get(user_id, []))
+        if role is not None and role not in user_roles:
+            continue
+        users.append(
+            {
+                "id": str(user_id),
+                "email": email,
+                "display_name": display_name or "",
+                "roles": user_roles,
+                "status": status,
+            }
+        )
+    return users
 
 
 async def list_relationships(

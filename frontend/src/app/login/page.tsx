@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ApiError, grantConsent, login, register } from "@/lib/api"
+import { ApiError, getMe, grantConsent, landingPathForRoles, login, register } from "@/lib/api"
 
 type Mode = "login" | "register"
 
@@ -43,7 +43,8 @@ export default function LoginPage() {
         }
       } else {
         await login(organizationSlug, email, password, totpCode || undefined)
-        router.push("/conversation")
+        const me = await getMe()
+        router.push(landingPathForRoles(me.roles))
       }
     } catch (err) {
       if (err instanceof ApiError) {

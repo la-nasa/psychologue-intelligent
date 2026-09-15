@@ -9,6 +9,7 @@ import { getProfile, getToken } from "@/lib/api"
 const TITLES: Record<string, string> = {
   "/conversation": "Conversation",
   "/voice": "Voix",
+  "/checkin": "Check-in rapide",
   "/goals": "Objectifs",
   "/history": "Historique",
   "/alerts": "Alertes",

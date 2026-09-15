@@ -75,14 +75,14 @@ export default function Home() {
           <span className="font-medium">Session vocale</span>
           <span className="ml-auto text-xs text-muted-foreground">Bientôt</span>
         </Link>
-        <div
-          className="flex cursor-not-allowed items-center gap-3 rounded-lg border px-4 py-3.5 text-sm opacity-60"
-          title="Pas encore disponible"
+        <Link
+          href="/checkin"
+          className="flex items-center gap-3 rounded-lg border px-4 py-3.5 text-sm transition-colors hover:border-foreground/20 hover:bg-accent/40"
         >
           <Activity className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
           <span className="font-medium">Check-in rapide</span>
-          <span className="ml-auto text-xs text-muted-foreground">Bientôt</span>
-        </div>
+          <ArrowRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
+        </Link>
       </div>
 
       {/* Objectifs */}
