@@ -50,6 +50,18 @@ class MfaActivateRequest(BaseModel):
     code: str = Field(min_length=6, max_length=10)
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: SecretStr = Field(min_length=1, max_length=256)
+    new_password: SecretStr = Field(min_length=12, max_length=256)
+
+
+class SessionItem(BaseModel):
+    id: str
+    created_at: str
+    expires_at: str
+    current: bool
+
+
 class ConsentRequest(BaseModel):
     purpose: ConsentPurpose
 

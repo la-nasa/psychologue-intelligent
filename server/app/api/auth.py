@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, Request, Response, status
 
 from app.api.deps import CurrentPrincipal, RequestId
@@ -8,7 +10,9 @@ from app.api.schemas import (
     MeResponse,
     MfaActivateRequest,
     MfaEnrollResponse,
+    PasswordChangeRequest,
     RegisterRequest,
+    SessionItem,
     StatusResponse,
     TokenResponse,
 )
@@ -85,4 +89,41 @@ async def mfa_activate(body: MfaActivateRequest, principal: CurrentPrincipal, re
             session, organization_id=principal.organization_id, user_id=principal.user_id,
             code=body.code, request_id=request_id,
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/auth/password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: PasswordChangeRequest, principal: CurrentPrincipal, request_id: RequestId
+) -> Response:
+    await auth_service.change_password(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        current_session_id=principal.session_id,
+        current_password=body.current_password.get_secret_value(),
+        new_password=body.new_password.get_secret_value(),
+        request_id=request_id,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/auth/sessions", response_model=dict[str, list[SessionItem]])
+async def list_sessions(principal: CurrentPrincipal) -> dict:
+    return {
+        "items": await auth_service.list_sessions(
+            organization_id=principal.organization_id,
+            user_id=principal.user_id,
+            current_session_id=principal.session_id,
+        )
+    }
+
+
+@router.delete("/auth/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def revoke_session(session_id: str, principal: CurrentPrincipal, request_id: RequestId) -> Response:
+    await auth_service.revoke_session(
+        organization_id=principal.organization_id,
+        user_id=principal.user_id,
+        session_id=uuid.UUID(session_id),
+        request_id=request_id,
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)

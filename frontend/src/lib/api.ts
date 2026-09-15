@@ -128,6 +128,50 @@ export async function activateMfa(code: string): Promise<void> {
   await request<void>("/api/v1/auth/mfa/activate", { method: "POST", body: JSON.stringify({ code }) })
 }
 
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
+  await request<void>("/api/v1/auth/password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+  })
+}
+
+export interface SessionItem {
+  id: string
+  created_at: string
+  expires_at: string
+  current: boolean
+}
+
+export async function listSessions(): Promise<SessionItem[]> {
+  const res = await request<{ items: SessionItem[] }>("/api/v1/auth/sessions")
+  return res.items
+}
+
+export async function revokeSession(sessionId: string): Promise<void> {
+  await request<void>(`/api/v1/auth/sessions/${sessionId}`, { method: "DELETE" })
+}
+
+// --- Rappels de check-in PHQ-9 (server/app/api/assessment.py) ---
+
+export interface ReminderItem {
+  id: string
+  instrument: string
+  due_at: string
+  status: "PENDING" | "SENT" | "DONE" | "CANCELLED"
+}
+
+export async function scheduleReminder(dueAt: string): Promise<{ id: string }> {
+  return request<{ id: string }>("/api/v1/assessments/reminders", {
+    method: "POST",
+    body: JSON.stringify({ due_at: dueAt }),
+  })
+}
+
+export async function listReminders(): Promise<ReminderItem[]> {
+  const res = await request<{ items: ReminderItem[] }>("/api/v1/assessments/reminders")
+  return res.items
+}
+
 export interface ConversationResponse {
   id: string
   status: string

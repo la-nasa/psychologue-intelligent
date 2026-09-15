@@ -193,6 +193,97 @@ async def revoke(token: str, request_id: str) -> None:
             )
 
 
+async def change_password(
+    *,
+    organization_id: uuid.UUID,
+    user_id: uuid.UUID,
+    current_session_id: uuid.UUID,
+    current_password: str,
+    new_password: str,
+    request_id: str,
+) -> None:
+    settings = _settings()
+    async with tenant_session(organization_id, user_id=user_id) as session:
+        user = (await session.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
+        if user is None:
+            raise NotFoundError("user not found")
+        ok, _rehash = verify_password(current_password, user.password_hash, settings)
+        if not ok:
+            await audit.record(
+                session, request_id=request_id, action="auth.password_change", resource_type="user",
+                resource_id=str(user_id), organization_id=organization_id, actor_id=user_id, outcome="FAILURE",
+            )
+            raise AuthenticationError("current password is incorrect")
+
+        user.password_hash = hash_password(new_password, settings)
+
+        # Changer le mot de passe révoque toutes les autres sessions — la session
+        # courante reste active pour ne pas déconnecter l'utilisateur qui vient de
+        # prouver son identité par le mot de passe actuel.
+        other_sessions = (
+            await session.execute(
+                select(Session).where(
+                    Session.user_id == user_id,
+                    Session.id != current_session_id,
+                    Session.revoked_at.is_(None),
+                )
+            )
+        ).scalars().all()
+        now = dt.datetime.now(dt.UTC)
+        for other in other_sessions:
+            other.revoked_at = now
+
+        await audit.record(
+            session, request_id=request_id, action="auth.password_change", resource_type="user",
+            resource_id=str(user_id), organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",
+            metadata={"sessions_revoked": len(other_sessions)},
+        )
+
+
+async def list_sessions(
+    *, organization_id: uuid.UUID, user_id: uuid.UUID, current_session_id: uuid.UUID | None
+) -> list[dict]:
+    async with tenant_session(organization_id, user_id=user_id) as session:
+        rows = (
+            await session.execute(
+                select(Session)
+                .where(Session.user_id == user_id, Session.revoked_at.is_(None))
+                .order_by(Session.created_at.desc())
+            )
+        ).scalars().all()
+        now = dt.datetime.now(dt.UTC)
+        return [
+            {
+                "id": str(s.id),
+                "created_at": s.created_at.isoformat(),
+                "expires_at": s.expires_at.isoformat(),
+                "current": s.id == current_session_id,
+                "expired": s.expires_at <= now,
+            }
+            for s in rows
+            if s.expires_at > now
+        ]
+
+
+async def revoke_session(
+    *, organization_id: uuid.UUID, user_id: uuid.UUID, session_id: uuid.UUID, request_id: str
+) -> None:
+    async with tenant_session(organization_id, user_id=user_id) as session:
+        row = (
+            await session.execute(
+                select(Session).where(Session.id == session_id, Session.user_id == user_id)
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            raise NotFoundError("session not found")
+        if row.revoked_at is None:
+            row.revoked_at = dt.datetime.now(dt.UTC)
+            await audit.record(
+                session, request_id=request_id, action="auth.session_revoke", resource_type="session",
+                resource_id=str(session_id), organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",
+            )
+
+
 def _encode_jwt(payload: dict[str, object], key: str) -> str:
     # PyJWT >= 2 renvoie str.
     return jwt.encode(payload, key, algorithm="HS256")
