@@ -32,7 +32,7 @@ const CONSENT_LABELS: Record<ConsentPurpose, { label: string; description: strin
   CARE: { label: "Suivi thérapeutique", description: "Nécessaire pour utiliser l'assistant et le suivi clinique." },
   LEARNING: { label: "Apprentissage continu", description: "Utilisation anonymisée et revue par un clinicien, pour améliorer le modèle." },
   AI_EXTERNAL: { label: "Traitement externe", description: "Autoriser l'envoi de messages complexes à un fournisseur cloud plutôt qu'au modèle local uniquement." },
-  VOICE: { label: "Sessions vocales", description: "Enregistrement et traitement de la voix — fonctionnalité pas encore disponible." },
+  VOICE: { label: "Sessions vocales", description: "Transcription de votre voix par votre navigateur pour parler à l'assistant, sans enregistrement sur nos serveurs." },
   ANALYTICS: { label: "Analyses anonymes", description: "Contribuer aux statistiques d'usage anonymisées du produit." },
   RESEARCH: { label: "Recherche", description: "Utilisation de données dé-identifiées à des fins de recherche." },
 }

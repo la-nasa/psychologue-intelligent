@@ -89,6 +89,74 @@ async def get_or_create_active_conversation(
     return convo
 
 
+async def start_new_conversation(
+    session: AsyncSession, *, organization_id: uuid.UUID, patient_id: uuid.UUID, request_id: str
+) -> Conversation:
+    """Clôt la conversation active du patient (s'il y en a une) et en ouvre une
+    nouvelle — pour un patient qui veut repartir d'une page blanche plutôt que
+    de reprendre le fil précédent."""
+    if not await consent.has_active_consent(session, patient_id, "CARE"):
+        raise PermissionDeniedError("care consent is required before starting a conversation")
+
+    now = dt.datetime.now(dt.UTC)
+    await session.execute(
+        update(Conversation)
+        .where(Conversation.patient_id == patient_id, Conversation.status == "ACTIVE")
+        .values(status="CLOSED", updated_at=now)
+    )
+
+    convo = Conversation(id=uuid.uuid4(), organization_id=organization_id, patient_id=patient_id, status="ACTIVE")
+    session.add(convo)
+    await session.flush()
+    session.add(ConversationState(conversation_id=convo.id, organization_id=organization_id, stage="WELCOME"))
+    await session.flush()
+    await audit.record(
+        session, request_id=request_id, action="conversation.start_new", resource_type="conversation",
+        resource_id=str(convo.id), organization_id=organization_id, actor_id=patient_id, outcome="SUCCESS",
+    )
+    return convo
+
+
+async def list_conversations(session: AsyncSession, *, patient_id: uuid.UUID) -> list[dict]:
+    rows = (
+        await session.execute(
+            select(Conversation).where(Conversation.patient_id == patient_id).order_by(Conversation.created_at.desc())
+        )
+    ).scalars().all()
+
+    out: list[dict] = []
+    for convo in rows:
+        count = (
+            await session.execute(
+                select(func.count()).select_from(Message).where(Message.conversation_id == convo.id)
+            )
+        ).scalar_one()
+        last = (
+            await session.execute(
+                select(Message.author_type, Message.content_enc)
+                .where(Message.conversation_id == convo.id)
+                .order_by(Message.sequence_no.desc())
+                .limit(1)
+            )
+        ).first()
+        preview = None
+        if last is not None:
+            author_type, content_enc = last
+            text = decrypt(content_enc) or ""
+            preview = {"author_type": author_type, "text": text[:140]}
+        out.append(
+            {
+                "id": str(convo.id),
+                "status": convo.status,
+                "created_at": convo.created_at.isoformat(),
+                "updated_at": convo.updated_at.isoformat(),
+                "message_count": count,
+                "last_message": preview,
+            }
+        )
+    return out
+
+
 async def _require_owned_active(session: AsyncSession, patient_id: uuid.UUID, conversation_id: uuid.UUID) -> Conversation:
     convo = (
         await session.execute(select(Conversation).where(Conversation.id == conversation_id))

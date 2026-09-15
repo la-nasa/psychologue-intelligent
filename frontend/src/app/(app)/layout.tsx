@@ -17,6 +17,12 @@ const TITLES: Record<string, string> = {
   "/settings": "Paramètres",
 }
 
+function titleFor(pathname: string): string | undefined {
+  if (TITLES[pathname]) return TITLES[pathname]
+  if (pathname.startsWith("/history/")) return "Conversation"
+  return undefined
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -54,7 +60,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header title={TITLES[pathname]} onMenuClick={() => setMobileOpen(true)} />
+        <Header title={titleFor(pathname)} onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

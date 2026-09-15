@@ -5,8 +5,18 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Send } from "lucide-react"
-import { ApiError, clearToken, getToken, startConversation, streamMessage } from "@/lib/api"
+import { Send, SquarePen } from "lucide-react"
+import {
+  ApiError,
+  clearToken,
+  getToken,
+  listMessages,
+  startConversation,
+  startNewConversation,
+  streamMessage,
+} from "@/lib/api"
+
+const WELCOME_MESSAGE = "Bonjour. Comment vous sentez-vous aujourd'hui ? Je suis là pour vous écouter."
 
 interface Message {
   id: string
@@ -26,8 +36,32 @@ export default function ConversationPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputValue, setInputValue] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
+  const [startingNew, setStartingNew] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const streamAbort = useRef<AbortController | null>(null)
+
+  const hydrate = (convoId: string) => {
+    setConversationId(convoId)
+    listMessages(convoId)
+      .then((items) => {
+        if (items.length === 0) {
+          setMessages([{ id: "welcome", role: "assistant", content: WELCOME_MESSAGE, timestamp: new Date() }])
+          return
+        }
+        setMessages(
+          items.map((m) => ({
+            id: m.id,
+            role: m.author_type === "PATIENT" ? "user" : "assistant",
+            content: m.content,
+            timestamp: new Date(m.created_at),
+          })),
+        )
+      })
+      .catch(() => {
+        // L'historique n'a pas pu être rechargé : on n'empêche pas de continuer à écrire.
+        setMessages([{ id: "welcome", role: "assistant", content: WELCOME_MESSAGE, timestamp: new Date() }])
+      })
+  }
 
   useEffect(() => {
     if (!getToken()) {
@@ -36,17 +70,7 @@ export default function ConversationPage() {
     }
     setAuthState("authenticated")
     startConversation()
-      .then((convo) => {
-        setConversationId(convo.id)
-        setMessages([
-          {
-            id: "welcome",
-            role: "assistant",
-            content: "Bonjour. Comment vous sentez-vous aujourd'hui ? Je suis là pour vous écouter.",
-            timestamp: new Date(),
-          },
-        ])
-      })
+      .then((convo) => hydrate(convo.id))
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           clearToken()
@@ -58,6 +82,26 @@ export default function ConversationPage() {
 
     return () => streamAbort.current?.abort()
   }, [])
+
+  const handleNewConversation = async () => {
+    if (startingNew) return
+    setStartingNew(true)
+    streamAbort.current?.abort()
+    try {
+      const convo = await startNewConversation()
+      setConversationId(convo.id)
+      setMessages([{ id: "welcome", role: "assistant", content: WELCOME_MESSAGE, timestamp: new Date() }])
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 401) {
+        clearToken()
+        setAuthState("anonymous")
+      } else {
+        setSetupError("Impossible de démarrer une nouvelle conversation.")
+      }
+    } finally {
+      setStartingNew(false)
+    }
+  }
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -146,7 +190,20 @@ export default function ConversationPage() {
         <p className="border-b bg-destructive/10 p-2 text-center text-sm text-destructive">{setupError}</p>
       )}
 
-      <ScrollArea className="flex-1 px-4 py-6 md:px-0" ref={scrollRef}>
+      <div className="flex items-center justify-end px-4 pt-3 md:px-0">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleNewConversation}
+          disabled={startingNew || isStreaming}
+          className="text-muted-foreground hover:text-foreground"
+        >
+          <SquarePen className="h-3.5 w-3.5" strokeWidth={1.75} />
+          Nouvelle conversation
+        </Button>
+      </div>
+
+      <ScrollArea className="flex-1 px-4 py-4 md:px-0" ref={scrollRef}>
         <div className="space-y-5">
           {messages.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>

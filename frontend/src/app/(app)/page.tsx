@@ -73,7 +73,7 @@ export default function Home() {
         >
           <Mic className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
           <span className="font-medium">Session vocale</span>
-          <span className="ml-auto text-xs text-muted-foreground">Bientôt</span>
+          <ArrowRight className="ml-auto h-3.5 w-3.5 text-muted-foreground" strokeWidth={1.75} />
         </Link>
         <Link
           href="/checkin"

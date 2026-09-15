@@ -50,6 +50,21 @@ async def start_conversation(principal: CurrentPrincipal, request_id: RequestId)
         return ConversationResponse(id=str(convo.id), status=convo.status)
 
 
+@router.post("/conversations/new", response_model=ConversationResponse, status_code=status.HTTP_201_CREATED)
+async def start_new_conversation(principal: CurrentPrincipal, request_id: RequestId) -> ConversationResponse:
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        convo = await orch.start_new_conversation(
+            session, organization_id=principal.organization_id, patient_id=principal.user_id, request_id=request_id
+        )
+        return ConversationResponse(id=str(convo.id), status=convo.status)
+
+
+@router.get("/conversations")
+async def list_conversations(principal: CurrentPrincipal) -> dict:
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        return {"items": await orch.list_conversations(session, patient_id=principal.user_id)}
+
+
 @router.post("/conversations/{conversation_id}/messages", status_code=status.HTTP_201_CREATED)
 async def send_message(
     conversation_id: str, body: SendMessageRequest, request: Request, principal: CurrentPrincipal, request_id: RequestId

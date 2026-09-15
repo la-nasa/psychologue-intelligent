@@ -4,17 +4,14 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { History, Search } from "lucide-react"
-import { ApiError, clearToken, getToken, listMessages, MessageItem, startConversation } from "@/lib/api"
+import { History, ChevronRight } from "lucide-react"
+import { ApiError, clearToken, ConversationSummary, getToken, listConversations } from "@/lib/api"
 
 export default function HistoryPage() {
   const [authed, setAuthed] = useState<boolean | null>(null)
-  const [messages, setMessages] = useState<MessageItem[]>([])
+  const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [searchTerm, setSearchTerm] = useState("")
 
   useEffect(() => {
     if (!getToken()) {
@@ -22,9 +19,8 @@ export default function HistoryPage() {
       return
     }
     setAuthed(true)
-    startConversation()
-      .then((convo) => listMessages(convo.id))
-      .then((items) => setMessages(items))
+    listConversations()
+      .then(setConversations)
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
           clearToken()
@@ -47,60 +43,55 @@ export default function HistoryPage() {
     )
   }
 
-  const filtered = messages.filter((m) => m.content.toLowerCase().includes(searchTerm.toLowerCase()))
-
   return (
-    <div className="mx-auto flex h-full w-full max-w-3xl flex-col">
-      <div className="space-y-4 px-6 pb-4 pt-8 md:pt-10">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Historique</h1>
-          <p className="text-sm text-muted-foreground">
-            Messages de votre conversation en cours. Le regroupement par session arrivera avec une prochaine mise à
-            jour — une seule conversation active est suivie pour l&apos;instant.
-          </p>
-        </div>
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" strokeWidth={1.75} />
-          <Input
-            placeholder="Rechercher dans les messages…"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+    <div className="mx-auto w-full max-w-3xl space-y-6 px-6 py-8 md:py-10">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight">Historique</h1>
+        <p className="text-sm text-muted-foreground">Toutes vos conversations, de la plus récente à la plus ancienne.</p>
       </div>
 
-      <ScrollArea className="flex-1 px-6 pb-8">
-        {loading ? (
-          <p className="text-sm text-muted-foreground">Chargement…</p>
-        ) : error ? (
-          <p className="text-sm text-destructive">{error}</p>
-        ) : filtered.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-10 text-center">
-            <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
-            <p className="text-sm text-muted-foreground">Aucun message pour le moment.</p>
-          </div>
-        ) : (
-          <div className="divide-y">
-            {filtered.map((m) => (
-              <div key={m.id} className="flex gap-4 py-4">
-                <Badge
-                  variant={m.author_type === "PATIENT" ? "secondary" : "outline"}
-                  className="h-fit shrink-0"
-                >
-                  {m.author_type === "PATIENT" ? "Vous" : "Assistant"}
-                </Badge>
-                <div className="min-w-0 flex-1 space-y-1">
-                  <p className="whitespace-pre-wrap text-sm">{m.content}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(m.created_at).toLocaleString("fr-FR", { dateStyle: "medium", timeStyle: "short" })}
-                  </p>
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : error ? (
+        <p className="text-sm text-destructive">{error}</p>
+      ) : conversations.length === 0 ? (
+        <div className="rounded-lg border border-dashed p-10 text-center">
+          <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
+          <p className="text-sm text-muted-foreground">Aucune conversation pour le moment.</p>
+        </div>
+      ) : (
+        <div className="divide-y rounded-lg border bg-card">
+          {conversations.map((c) => (
+            <Link
+              key={c.id}
+              href={`/history/${c.id}`}
+              className="flex items-center justify-between gap-4 px-5 py-4 transition-colors hover:bg-accent/40"
+            >
+              <div className="min-w-0 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium tracking-tight">
+                    {new Date(c.created_at).toLocaleDateString("fr-FR", { dateStyle: "long" })}
+                  </span>
+                  <Badge variant={c.status === "ACTIVE" ? "success" : "outline"}>
+                    {c.status === "ACTIVE" ? "En cours" : "Terminée"}
+                  </Badge>
                 </div>
+                <p className="truncate text-sm text-muted-foreground">
+                  {c.last_message
+                    ? `${c.last_message.author_type === "PATIENT" ? "Vous : " : "Assistant : "}${c.last_message.text}`
+                    : "Aucun message."}
+                </p>
               </div>
-            ))}
-          </div>
-        )}
-      </ScrollArea>
+              <div className="flex shrink-0 items-center gap-3">
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {c.message_count} message{c.message_count > 1 ? "s" : ""}
+                </span>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} />
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

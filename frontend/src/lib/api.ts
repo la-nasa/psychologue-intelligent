@@ -181,6 +181,25 @@ export async function startConversation(): Promise<ConversationResponse> {
   return request<ConversationResponse>("/api/v1/conversations", { method: "POST" })
 }
 
+/** Clôt la conversation active et en ouvre une nouvelle — pour repartir à zéro. */
+export async function startNewConversation(): Promise<ConversationResponse> {
+  return request<ConversationResponse>("/api/v1/conversations/new", { method: "POST" })
+}
+
+export interface ConversationSummary {
+  id: string
+  status: "ACTIVE" | "CLOSED"
+  created_at: string
+  updated_at: string
+  message_count: number
+  last_message: { author_type: string; text: string } | null
+}
+
+export async function listConversations(): Promise<ConversationSummary[]> {
+  const res = await request<{ items: ConversationSummary[] }>("/api/v1/conversations")
+  return res.items
+}
+
 export interface MessageItem {
   id: string
   author_type: string
