@@ -12,13 +12,20 @@ from app.api.schemas import (
     RelationshipCreateRequest,
     RelationshipItem,
 )
-from app.application import channels, relationships
-from app.application.rbac import require_role
+from app.application import analytics, channels, relationships
+from app.application.rbac import require_permission, require_role
 from app.core.db import tenant_session
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 _ADMIN_ROLES = ("ADMIN", "SUPER_ADMIN")
+
+
+@router.get("/analytics/overview")
+async def analytics_overview(principal: CurrentPrincipal, days: int = 14) -> dict:
+    async with tenant_session(principal.organization_id, user_id=principal.user_id) as session:
+        await require_permission(session, principal, "analytics.read")
+        return await analytics.overview(session, organization_id=principal.organization_id, days=days)
 
 
 @router.get("/notification-channels", response_model=dict[str, list[ChannelItem]])

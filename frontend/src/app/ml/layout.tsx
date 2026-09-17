@@ -2,45 +2,30 @@
 
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Users, BellRing, ClipboardCheck, LineChart, GraduationCap } from "lucide-react"
+import { GraduationCap, Boxes } from "lucide-react"
 import { Sidebar, type NavItem } from "@/components/layout/Sidebar"
 import { Header } from "@/components/layout/Header"
 import { AccessDeniedScreen, LoadingScreen } from "@/components/layout/GuardScreen"
 import { useRoleGuard } from "@/lib/useCurrentUser"
 
 const TITLES: Record<string, string> = {
-  "/clinician": "Vue d'ensemble",
-  "/clinician/patients": "Patients suivis",
-  "/clinician/alerts": "Centre d'alertes",
-  "/clinician/review": "Revue des réponses IA",
-  "/clinician/learning": "Apprentissage continu",
-  "/clinician/quality": "Qualité du modèle",
+  "/ml": "Apprentissage continu",
+  "/ml/models": "Registre de modèles",
 }
 
-function titleFor(pathname: string): string | undefined {
-  if (TITLES[pathname]) return TITLES[pathname]
-  if (pathname.startsWith("/clinician/patients/")) return "Dossier patient"
-  return undefined
-}
-
-export default function ClinicianLayout({ children }: { children: React.ReactNode }) {
+export default function MlLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { state, me } = useRoleGuard(["PSYCHOLOGIST", "CLINICAL_SUPERVISOR"])
+  const { state, me } = useRoleGuard(["ML_ENGINEER", "SUPER_ADMIN"])
 
   useEffect(() => setMobileOpen(false), [pathname])
 
   if (state === "loading") return <LoadingScreen />
   if (state === "denied") return <AccessDeniedScreen />
 
-  const isSupervisor = me?.roles.includes("CLINICAL_SUPERVISOR")
   const navigation: NavItem[] = [
-    { name: "Vue d'ensemble", href: "/clinician", icon: LayoutDashboard },
-    { name: "Patients", href: "/clinician/patients", icon: Users },
-    { name: "Alertes", href: "/clinician/alerts", icon: BellRing },
-    { name: "Revue IA", href: "/clinician/review", icon: ClipboardCheck },
-    { name: "Apprentissage", href: "/clinician/learning", icon: GraduationCap },
-    ...(isSupervisor ? [{ name: "Qualité", href: "/clinician/quality", icon: LineChart }] : []),
+    { name: "Apprentissage", href: "/ml", icon: GraduationCap },
+    { name: "Registre de modèles", href: "/ml/models", icon: Boxes },
   ]
 
   return (
@@ -50,8 +35,8 @@ export default function ClinicianLayout({ children }: { children: React.ReactNod
           navigation={navigation}
           accountNavigation={[]}
           patientName={me?.email ?? null}
-          brandSubtitle="Espace clinicien"
-          identitySubtitle={isSupervisor ? "Superviseur clinique" : "Psychologue"}
+          brandSubtitle="Espace MLOps"
+          identitySubtitle="Ingénieur ML"
         />
       </div>
 
@@ -63,8 +48,8 @@ export default function ClinicianLayout({ children }: { children: React.ReactNod
               navigation={navigation}
               accountNavigation={[]}
               patientName={me?.email ?? null}
-              brandSubtitle="Espace clinicien"
-              identitySubtitle={isSupervisor ? "Superviseur clinique" : "Psychologue"}
+              brandSubtitle="Espace MLOps"
+              identitySubtitle="Ingénieur ML"
               onNavigate={() => setMobileOpen(false)}
             />
           </div>
@@ -72,7 +57,7 @@ export default function ClinicianLayout({ children }: { children: React.ReactNod
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header title={titleFor(pathname)} onMenuClick={() => setMobileOpen(true)} />
+        <Header title={TITLES[pathname]} onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

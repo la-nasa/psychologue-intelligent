@@ -110,6 +110,8 @@ export async function getMe(): Promise<MeResponse> {
 export function landingPathForRoles(roles: string[]): string {
   if (roles.includes("PSYCHOLOGIST") || roles.includes("CLINICAL_SUPERVISOR")) return "/clinician"
   if (roles.includes("ADMIN") || roles.includes("SUPER_ADMIN")) return "/admin"
+  if (roles.includes("ML_ENGINEER")) return "/ml"
+  if (roles.includes("RESEARCHER")) return "/research"
   return "/conversation"
 }
 
@@ -707,4 +709,101 @@ export async function streamMessage(
       sepIndex = buffer.indexOf("\n\n")
     }
   }
+}
+
+// --- Phase 15 : analytics produit (server/app/api/admin.py) ---
+
+export interface AnalyticsOverview {
+  since: string
+  totals_by_event_type: Record<string, number>
+  daily_active_users: { date: string; count: number }[]
+  messages_per_day: { date: string; count: number }[]
+  ai_responses_by_path_and_level: { generation_path: string; decision_level: string; count: number }[]
+}
+
+export async function getAnalyticsOverview(days = 14): Promise<AnalyticsOverview> {
+  return request<AnalyticsOverview>(`/api/v1/admin/analytics/overview?days=${days}`)
+}
+
+// --- Phase 16 : gouvernance de l'apprentissage continu (server/app/api/learning.py) ---
+
+export type LearningSampleStatus = "PENDING_REVIEW" | "APPROVED" | "REJECTED" | "PROMOTED" | "ROLLED_BACK"
+
+export interface LearningSample {
+  id: string
+  status: LearningSampleStatus
+  model_version: string | null
+  anonymized_prompt: string | null
+  anonymized_response: string
+  clinical_decision: "APPROVE" | "REJECT" | null
+  technical_decision: "APPROVE" | "REJECT" | null
+  rollback_reason: string | null
+  created_at: string
+}
+
+export async function listLearningSamples(status?: LearningSampleStatus): Promise<LearningSample[]> {
+  const qs = status ? `?status=${status}` : ""
+  const res = await request<{ items: LearningSample[] }>(`/api/v1/learning/samples${qs}`)
+  return res.items
+}
+
+export async function reviewLearningSample(sampleId: string, decision: "APPROVE" | "REJECT"): Promise<LearningSample> {
+  return request<LearningSample>(`/api/v1/learning/samples/${sampleId}/review`, {
+    method: "POST",
+    body: JSON.stringify({ decision }),
+  })
+}
+
+export async function promoteLearningSample(sampleId: string): Promise<LearningSample> {
+  return request<LearningSample>(`/api/v1/learning/samples/${sampleId}/promote`, { method: "POST" })
+}
+
+export async function rollbackLearningSample(sampleId: string, reason: string): Promise<LearningSample> {
+  return request<LearningSample>(`/api/v1/learning/samples/${sampleId}/rollback`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  })
+}
+
+// --- Phase 17 : registre de modèles / MLOps (server/app/api/mlops.py) ---
+
+export type ModelStage = "EXPERIMENTAL" | "STAGING" | "SHADOW" | "CANARY" | "PRODUCTION" | "RETIRED"
+
+export interface ModelVersionItem {
+  id: string
+  name: string
+  version: string
+  stage: ModelStage
+  mlflow_run_id: string | null
+  mlflow_model_version: string | null
+  mlflow_linked: boolean
+  notes: string
+  created_at: string
+  updated_at: string
+}
+
+export async function listModelVersions(): Promise<ModelVersionItem[]> {
+  const res = await request<{ items: ModelVersionItem[] }>("/api/v1/mlops/models")
+  return res.items
+}
+
+export async function registerModelVersion(name: string, version: string, notes = ""): Promise<{ id: string }> {
+  return request<{ id: string }>("/api/v1/mlops/models", {
+    method: "POST",
+    body: JSON.stringify({ name, version, notes }),
+  })
+}
+
+export async function promoteModelVersion(id: string, targetStage: ModelStage): Promise<ModelVersionItem> {
+  return request<ModelVersionItem>(`/api/v1/mlops/models/${id}/promote`, {
+    method: "POST",
+    body: JSON.stringify({ target_stage: targetStage }),
+  })
+}
+
+export async function rollbackModelVersion(id: string, reason: string): Promise<ModelVersionItem> {
+  return request<ModelVersionItem>(`/api/v1/mlops/models/${id}/rollback`, {
+    method: "POST",
+    body: JSON.stringify({ reason }),
+  })
 }

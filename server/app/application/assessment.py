@@ -14,7 +14,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import audit
+from app.application import analytics, audit
 from app.application.escalation import escalate_assessment
 from app.application.notifications import NotificationProvider
 from app.application.safety import SafetyConfig
@@ -62,6 +62,16 @@ async def submit_phq9(
         resource_id=str(assessment_id), organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",
         metadata={"total": result.total_score, "item9": result.item9_score},
     )
+
+    # Phase 15 : analytics produit — seul le fait qu'un check-in ait eu lieu est
+    # compté, jamais le score (donnée clinique, hors périmètre de ce flux).
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=user_id, category="PRODUCT",
+            event_type="phq9_completed",
+        )
+    except Exception:
+        pass
 
     level = _alert_level(result, config.policy)
     alert_id = None

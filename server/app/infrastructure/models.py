@@ -671,3 +671,97 @@ class Notification(Base):
         Index("ix_notifications_alert", "alert_id", "channel"),
         Index("ix_notifications_retry", "delivery_status", "next_retry_at"),
     )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 15 : analytics produit — jamais un join direct sur une table clinique  #
+# --------------------------------------------------------------------------- #
+
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    pseudonym: Mapped[str] = mapped_column(String(64), nullable=False)
+    category: Mapped[str] = mapped_column(String(16), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    properties: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=text("'{}'::jsonb"))
+    occurred_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint("category IN ('PRODUCT','AI_QUALITY')", name="ck_analytics_category"),
+        Index("ix_analytics_org_type_time", "organization_id", "event_type", "occurred_at"),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 16 : gouvernance de l'apprentissage continu — rien ne s'entraîne seul  #
+# --------------------------------------------------------------------------- #
+
+
+class LearningSample(Base):
+    __tablename__ = "learning_samples"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    source_message_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("messages.id"), nullable=False)
+    anonymized_prompt_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
+    anonymized_response_enc: Mapped[str] = mapped_column(Text, nullable=False)
+    model_version: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False, server_default="PENDING_REVIEW")
+    clinical_reviewer_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    clinical_decision: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    clinical_reviewed_at: Mapped[dt.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    technical_reviewer_id: Mapped[uuid.UUID | None] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    technical_decision: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    technical_reviewed_at: Mapped[dt.datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    rollback_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('PENDING_REVIEW','APPROVED','REJECTED','PROMOTED','ROLLED_BACK')",
+            name="ck_learning_sample_status",
+        ),
+        CheckConstraint(
+            "clinical_decision IS NULL OR clinical_decision IN ('APPROVE','REJECT')",
+            name="ck_learning_sample_clinical_decision",
+        ),
+        CheckConstraint(
+            "technical_decision IS NULL OR technical_decision IN ('APPROVE','REJECT')",
+            name="ck_learning_sample_technical_decision",
+        ),
+        UniqueConstraint("source_message_id", name="uq_learning_sample_message"),
+        Index("ix_learning_samples_org_status", "organization_id", "status", "created_at"),
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Phase 17 : registre de versions de modèle — miroir gouvernance de MLflow     #
+# --------------------------------------------------------------------------- #
+
+
+class ModelVersion(Base):
+    __tablename__ = "model_versions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    organization_id: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    name: Mapped[str] = mapped_column(String(80), nullable=False)
+    version: Mapped[str] = mapped_column(String(40), nullable=False)
+    stage: Mapped[str] = mapped_column(String(16), nullable=False, server_default="EXPERIMENTAL")
+    mlflow_run_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    mlflow_model_version: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    registered_by: Mapped[uuid.UUID] = mapped_column(PG_UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[dt.datetime] = _now()
+    updated_at: Mapped[dt.datetime] = _now()
+
+    __table_args__ = (
+        CheckConstraint(
+            "stage IN ('EXPERIMENTAL','STAGING','SHADOW','CANARY','PRODUCTION','RETIRED')",
+            name="ck_model_version_stage",
+        ),
+        UniqueConstraint("organization_id", "name", "version", name="uq_model_version"),
+        Index("ix_model_versions_org_stage", "organization_id", "stage"),
+    )

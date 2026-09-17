@@ -10,7 +10,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.application import audit
+from app.application import analytics, audit
 from app.core.crypto import decrypt, encrypt
 from app.core.errors import DomainError, NotFoundError
 from app.infrastructure.models import Goal, GoalProgress
@@ -44,6 +44,12 @@ async def create_goal(
         session, request_id=request_id, action="goal.create", resource_type="goal",
         resource_id=str(goal_id), organization_id=organization_id, actor_id=user_id, outcome="SUCCESS",
     )
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=user_id, category="PRODUCT", event_type="goal_created",
+        )
+    except Exception:
+        pass
     return goal_id
 
 

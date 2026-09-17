@@ -66,6 +66,12 @@ class Settings(BaseSettings):
 
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
 
+    # Phase 17 — MLOps (ADR-011). Vide => tracking désactivé, l'enregistrement de
+    # version reste local (table `model_versions`) sans miroir MLflow.
+    mlflow_tracking_uri: str = ""
+    mlflow_tracking_username: str = ""
+    mlflow_tracking_password: str = ""
+
     @property
     def is_production_like(self) -> bool:
         return self.env in ("staging", "shadow", "production")

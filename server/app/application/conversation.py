@@ -28,7 +28,7 @@ from app.ai.prompt import build_messages
 from app.ai.providers.base import ProviderUnavailable
 from app.ai.routing import model_router
 from app.ai.routing.dialogue_policy import classify
-from app.application import assessment, audit, consent, memory, personalization, profile
+from app.application import analytics, assessment, audit, consent, learning, memory, personalization, profile
 from app.application.output_safety import check as output_safety_check
 from app.application.safety import SafetyConfig, evaluate_incoming_message
 from app.core.config import get_settings
@@ -86,6 +86,13 @@ async def get_or_create_active_conversation(
         session, request_id=request_id, action="conversation.start", resource_type="conversation",
         resource_id=str(convo.id), organization_id=organization_id, actor_id=patient_id, outcome="SUCCESS",
     )
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=patient_id, category="PRODUCT",
+            event_type="conversation_started",
+        )
+    except Exception:
+        LOGGER.exception("analytics event write failed")
     return convo
 
 
@@ -114,6 +121,13 @@ async def start_new_conversation(
         session, request_id=request_id, action="conversation.start_new", resource_type="conversation",
         resource_id=str(convo.id), organization_id=organization_id, actor_id=patient_id, outcome="SUCCESS",
     )
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=patient_id, category="PRODUCT",
+            event_type="conversation_new",
+        )
+    except Exception:
+        LOGGER.exception("analytics event write failed")
     return convo
 
 
@@ -253,6 +267,13 @@ async def stream_turn(
         )
     )
     await session.flush()
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=patient_id, category="PRODUCT",
+            event_type="message_sent", properties={"sequence_no": seq},
+        )
+    except Exception:
+        LOGGER.exception("analytics event write failed")
     yield {"type": "user_message", "id": str(patient_msg_id), "sequence_no": seq, "content": text}
 
     outcome = await evaluate_incoming_message(
@@ -371,6 +392,27 @@ async def stream_turn(
             )
         except Exception:
             LOGGER.exception("episodic memory write failed")
+
+        # Phase 16 : échantillonnage pour revue humaine (apprentissage continu),
+        # gated sur le consentement LEARNING — jamais sur ORANGE/RED. Best-effort.
+        try:
+            await learning.sample_message(
+                session, organization_id=organization_id, patient_id=patient_id, message_id=assistant_msg_id,
+                prompt_text=text, response_text=reply_text, model_version=responder_version, request_id=request_id,
+            )
+        except Exception:
+            LOGGER.exception("learning sample write failed")
+
+    # Phase 15 : analytics produit/qualité IA, sur pseudonyme rotatif — jamais
+    # un accès direct aux tables cliniques depuis ce module. Best-effort.
+    try:
+        await analytics.record_event(
+            session, organization_id=organization_id, user_id=patient_id, category="AI_QUALITY",
+            event_type="assistant_response_generated",
+            properties={"generation_path": gen_path, "decision_level": decision.level},
+        )
+    except Exception:
+        LOGGER.exception("analytics event write failed")
 
     yield {
         "type": "assistant_message",

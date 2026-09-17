@@ -20,7 +20,7 @@ from app.core.db import system_session
 from app.core.security import hash_password, new_totp_secret
 from app.infrastructure.models import Organization, Role, User, UserRole
 
-_MFA_REQUIRED = {"ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR"}
+_MFA_REQUIRED = {"ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR", "RESEARCHER", "ML_ENGINEER"}
 
 
 async def _run(args: argparse.Namespace) -> None:
@@ -84,7 +84,7 @@ def main() -> None:
     parser.add_argument("--password", required=True)
     parser.add_argument(
         "--role", default="ADMIN",
-        choices=["ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR"],
+        choices=["ADMIN", "SUPER_ADMIN", "PSYCHOLOGIST", "CLINICAL_SUPERVISOR", "RESEARCHER", "ML_ENGINEER"],
     )
     asyncio.run(_run(parser.parse_args()))
 

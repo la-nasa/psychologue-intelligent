@@ -2,38 +2,23 @@
 
 import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
-import { Users, Link2, BellRing, LineChart, BarChart3 } from "lucide-react"
+import { BarChart3 } from "lucide-react"
 import { Sidebar, type NavItem } from "@/components/layout/Sidebar"
 import { Header } from "@/components/layout/Header"
 import { AccessDeniedScreen, LoadingScreen } from "@/components/layout/GuardScreen"
 import { useRoleGuard } from "@/lib/useCurrentUser"
 
-const TITLES: Record<string, string> = {
-  "/admin": "Relations patient-clinicien",
-  "/admin/channels": "Canaux de notification",
-  "/admin/directory": "Annuaire",
-  "/admin/analytics": "Analytics",
-  "/admin/quality": "Qualité du modèle",
-}
-
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function ResearchLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const { state, me } = useRoleGuard(["ADMIN", "SUPER_ADMIN"])
+  const { state, me } = useRoleGuard(["RESEARCHER", "ADMIN", "SUPER_ADMIN"])
 
   useEffect(() => setMobileOpen(false), [pathname])
 
   if (state === "loading") return <LoadingScreen />
   if (state === "denied") return <AccessDeniedScreen />
 
-  const isSuperAdmin = me?.roles.includes("SUPER_ADMIN")
-  const navigation: NavItem[] = [
-    { name: "Relations", href: "/admin", icon: Link2 },
-    { name: "Notifications", href: "/admin/channels", icon: BellRing },
-    { name: "Annuaire", href: "/admin/directory", icon: Users },
-    { name: "Analytics", href: "/admin/analytics", icon: BarChart3 },
-    ...(isSuperAdmin ? [{ name: "Qualité IA", href: "/admin/quality", icon: LineChart }] : []),
-  ]
+  const navigation: NavItem[] = [{ name: "Analytics", href: "/research", icon: BarChart3 }]
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -42,8 +27,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           navigation={navigation}
           accountNavigation={[]}
           patientName={me?.email ?? null}
-          brandSubtitle="Console admin"
-          identitySubtitle={isSuperAdmin ? "Super-admin" : "Administrateur"}
+          brandSubtitle="Espace recherche"
+          identitySubtitle="Chercheur"
         />
       </div>
 
@@ -55,8 +40,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               navigation={navigation}
               accountNavigation={[]}
               patientName={me?.email ?? null}
-              brandSubtitle="Console admin"
-              identitySubtitle={isSuperAdmin ? "Super-admin" : "Administrateur"}
+              brandSubtitle="Espace recherche"
+              identitySubtitle="Chercheur"
               onNavigate={() => setMobileOpen(false)}
             />
           </div>
@@ -64,7 +49,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       )}
 
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header title={TITLES[pathname]} onMenuClick={() => setMobileOpen(true)} />
+        <Header title="Analytics" onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
     </div>

@@ -23,7 +23,12 @@ from app.core.security import (
 )
 from app.infrastructure.models import Organization, Role, Session, User, UserRole
 
-_MFA_REQUIRED_ROLES = {"PSYCHOLOGIST", "CLINICAL_SUPERVISOR", "ADMIN", "SUPER_ADMIN"}
+_MFA_REQUIRED_ROLES = {
+    "PSYCHOLOGIST", "CLINICAL_SUPERVISOR", "ADMIN", "SUPER_ADMIN",
+    # Phases 15-17 : RESEARCHER (analytics.read) et ML_ENGINEER (learning.review,
+    # model.approve) portent maintenant de vrais pouvoirs, plus seulement auth.login.
+    "RESEARCHER", "ML_ENGINEER",
+}
 
 
 def _normalize_email(raw: str) -> str:

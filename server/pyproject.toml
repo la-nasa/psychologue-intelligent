@@ -31,6 +31,7 @@ dependencies = [
     "opentelemetry-instrumentation-fastapi==0.65b0",
     "opentelemetry-instrumentation-sqlalchemy==0.65b0",
     "opentelemetry-instrumentation-redis==0.65b0",
+    "mlflow-skinny==2.20.1",           # Phase 17 — client de tracking/registry (ADR-011), pas le serveur
 ]
 
 [project.optional-dependencies]
