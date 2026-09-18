@@ -1,0 +1,7 @@
+{
+  "models": [
+    {"name": "Qwen2.5-1.5B-Instruct-Q4_K_M", "role": "FAST_PATH", "smoke_response": "Je vous écoute."},
+    {"name": "Qwen2.5-3B-Instruct-Q4_K_M", "role": "DEEP_PATH", "smoke_response": "Merci de partager cela."}
+  ],
+  "prompts": ["Je me sens stressé.", "Ma journée a été difficile.", "J'aimerais comprendre ce que je ressens."]
+}
