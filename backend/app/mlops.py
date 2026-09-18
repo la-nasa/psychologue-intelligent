@@ -8,26 +8,28 @@ from typing import Any
 
 
 class MLOpsTracker:
-    """MLflow registry adapter with explicit lifecycle operations.
+    """MLflow tracking and registry facade.
 
-    The local JSONL fallback is development-only and never claims registry
-    promotion. Production must set MLFLOW_TRACKING_URI.
+    Production promotion requires a configured MLflow server. The JSONL mode is
+    deliberately limited to development telemetry and cannot promote models.
     """
+    VALID_STAGES = {"Staging", "Production", "Archived"}
+
     def __init__(self, tracking_uri: str | None = None, experiment: str = "psychologue-intelligent", path: Path = Path("work/mlops/runs.jsonl")):
         self.tracking_uri = tracking_uri or os.environ.get("MLFLOW_TRACKING_URI")
         self.experiment = experiment
         self.path = path
 
-    def _mlflow(self):
+    def _client(self):
         if not self.tracking_uri:
-            return None
+            return None, None
         import mlflow  # type: ignore[import-not-found]
         mlflow.set_tracking_uri(self.tracking_uri)
         mlflow.set_experiment(self.experiment)
-        return mlflow
+        return mlflow, mlflow.MlflowClient()
 
     def log_run(self, name: str, params: dict[str, Any], metrics: dict[str, float], tags: dict[str, str] | None = None, artifacts: list[Path] | None = None) -> str:
-        mlflow = self._mlflow()
+        mlflow, _ = self._client()
         if mlflow:
             with mlflow.start_run(run_name=name) as run:
                 mlflow.log_params(params); mlflow.log_metrics(metrics); mlflow.set_tags(tags or {})
@@ -37,27 +39,36 @@ class MLOpsTracker:
         run_id = f"local-{int(time.time() * 1000)}"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self.path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps({"run_id": run_id, "name": name, "params": params, "metrics": metrics, "tags": tags or {}, "created_at": time.time()}) + "\n")
+            handle.write(json.dumps({"run_id": run_id, "name": name, "params": params, "metrics": metrics, "tags": tags or {}, "created_at": time.time()}, ensure_ascii=False) + "\n")
         return run_id
 
-    def register(self, run_id: str, model_uri: str, name: str) -> str:
-        mlflow = self._mlflow()
+    def register_model(self, run_id: str, artifact_path: str, registered_name: str) -> str:
+        mlflow, _ = self._client()
         if not mlflow:
             raise RuntimeError("MLFLOW_TRACKING_URI is required for registry operations")
-        result = mlflow.register_model(model_uri, name)
-        return result.version
+        result = mlflow.register_model(f"runs:/{run_id}/{artifact_path}", registered_name)
+        return str(result.version)
 
-    def transition(self, name: str, version: str, stage: str) -> None:
-        if stage not in {"Staging", "Production", "Archived"}:
+    def promote(self, registered_name: str, version: str, stage: str, alias: str | None = None) -> None:
+        if stage not in self.VALID_STAGES:
             raise ValueError("unsupported MLflow stage")
-        mlflow = self._mlflow()
-        if not mlflow:
+        mlflow, client = self._client()
+        if not mlflow or not client:
             raise RuntimeError("MLFLOW_TRACKING_URI is required for promotion")
-        client = mlflow.MlflowClient()
-        client.transition_model_version_stage(name=name, version=version, stage=stage, archive_existing_versions=stage == "Production")
+        client.transition_model_version_stage(name=registered_name, version=version, stage=stage, archive_existing_versions=stage == "Production")
+        if alias:
+            client.set_registered_model_alias(registered_name, alias, version)
 
-    def set_alias(self, name: str, version: str, alias: str) -> None:
-        mlflow = self._mlflow()
-        if not mlflow:
-            raise RuntimeError("MLFLOW_TRACKING_URI is required for aliases")
-        mlflow.MlflowClient().set_registered_model_alias(name, alias, version)
+    def rollback(self, registered_name: str, production_version: str, rollback_version: str) -> None:
+        self.promote(registered_name, rollback_version, "Production", alias="champion")
+        mlflow, client = self._client()
+        if mlflow and client:
+            client.set_registered_model_alias(registered_name, "rollback-from-" + production_version, production_version)
+
+    def set_deployment_mode(self, registered_name: str, version: str, mode: str) -> None:
+        if mode not in {"shadow", "canary", "production"}:
+            raise ValueError("deployment mode must be shadow, canary or production")
+        mlflow, client = self._client()
+        if not mlflow or not client:
+            raise RuntimeError("MLFLOW_TRACKING_URI is required for deployment metadata")
+        client.set_model_version_tag(registered_name, version, "deployment_mode", mode)
