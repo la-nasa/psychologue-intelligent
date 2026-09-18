@@ -18,6 +18,11 @@ from app.core.config import get_settings
 LOGGER = logging.getLogger("pi.mlops.tracking")
 
 _EXPERIMENT_NAME = "psychologue-intelligent-v2"
+# Suffixe : le premier essai (avant le passage à --artifacts-destination /
+# --serve-artifacts) a créé une expérience dont l'emplacement d'artefacts
+# pointe vers le disque local du client — plutôt que de la faire pointer vers
+# un chemin qui n'existe pas sur ce conteneur, on en ouvre une nouvelle.
+_EXPERIMENT_NAME_V2 = f"{_EXPERIMENT_NAME}-2"
 
 # L'API par « stage » de MLflow est dépréciée depuis 2.9 au profit des alias,
 # mais reste fonctionnelle dans la 2.20 utilisée ici (mlflow-skinny) — la plus
@@ -62,7 +67,7 @@ def register_version(
         import mlflow
         from mlflow.tracking import MlflowClient
 
-        mlflow.set_experiment(_EXPERIMENT_NAME)
+        mlflow.set_experiment(_EXPERIMENT_NAME_V2)
         with mlflow.start_run(run_name=f"{name}-{version}") as run:
             mlflow.log_params(params)
             mlflow.set_tags({**tags, "stage": stage})

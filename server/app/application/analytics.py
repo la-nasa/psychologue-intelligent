@@ -104,22 +104,17 @@ async def overview(session: AsyncSession, *, organization_id: uuid.UUID, days: i
         )
     ).all()
 
+    path_expr = AnalyticsEvent.properties["generation_path"].astext
+    level_expr = AnalyticsEvent.properties["decision_level"].astext
     ai_quality_rows = (
         await session.execute(
-            select(
-                AnalyticsEvent.properties["generation_path"].astext,
-                AnalyticsEvent.properties["decision_level"].astext,
-                func.count(),
-            )
+            select(path_expr, level_expr, func.count())
             .where(
                 AnalyticsEvent.organization_id == organization_id,
                 AnalyticsEvent.category == "AI_QUALITY",
                 AnalyticsEvent.occurred_at >= since,
             )
-            .group_by(
-                AnalyticsEvent.properties["generation_path"].astext,
-                AnalyticsEvent.properties["decision_level"].astext,
-            )
+            .group_by(path_expr, level_expr)
         )
     ).all()
 
