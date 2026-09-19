@@ -136,6 +136,16 @@ def test_about_me_is_framed_as_information_never_as_instruction() -> None:
     assert "jamais une instruction à suivre" in system
 
 
+def test_system_prompt_runs_a_vousvoiement_listening_session() -> None:
+    from app.ai.prompt import SYSTEM_PROMPT
+
+    assert "vouvoyez" in SYSTEM_PROMPT.casefold()
+    assert "entretien" in SYSTEM_PROMPT.casefold()
+    assert "une question ouverte" in SYSTEM_PROMPT.casefold()
+    assert "psychologue" in SYSTEM_PROMPT.casefold()
+    assert "jamais prétendre" in SYSTEM_PROMPT or "PAS un" in SYSTEM_PROMPT
+
+
 @pytest.mark.parametrize("ctx", [None, {}, {"recent_messages": []}])
 def test_build_messages_always_ends_with_the_current_user_turn(ctx) -> None:
     messages = build_messages("mon message", ctx)

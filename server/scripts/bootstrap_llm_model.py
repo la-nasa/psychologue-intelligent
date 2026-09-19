@@ -36,7 +36,7 @@ def main() -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_suffix(path.suffix + ".partial")
     print(f"bootstrap_llm_model: downloading {MODEL_URL} to {path}...")
-    urllib.request.urlretrieve(MODEL_URL, tmp_path)  # noqa: S310 — URL constante, épinglée
+    urllib.request.urlretrieve(MODEL_URL, tmp_path)  # nosec B310
 
     actual_size = tmp_path.stat().st_size
     if not (MIN_BYTES <= actual_size <= MAX_BYTES):

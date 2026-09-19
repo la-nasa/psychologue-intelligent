@@ -12,7 +12,6 @@ import {
   User,
   Target,
   History,
-  BellRing,
   type LucideIcon,
 } from "lucide-react"
 
@@ -27,8 +26,7 @@ const navigation: NavItem[] = [
   { name: "Conversation", href: "/conversation", icon: MessageCircle },
   { name: "Voix", href: "/voice", icon: Mic },
   { name: "Objectifs", href: "/goals", icon: Target },
-  { name: "Historique", href: "/history", icon: History },
-  { name: "Alertes", href: "/alerts", icon: BellRing },
+    { name: "Historique", href: "/history", icon: History },
 ]
 
 const accountNavigation: NavItem[] = [

@@ -15,8 +15,10 @@ import {
   startNewConversation,
   streamMessage,
 } from "@/lib/api"
+import { EMERGENCY_BANNER } from "@/lib/emergency"
 
-const WELCOME_MESSAGE = "Bonjour. Comment vous sentez-vous aujourd'hui ? Je suis là pour vous écouter."
+const WELCOME_MESSAGE =
+  "Bonjour. Nous avons un moment pour parler de ce qui vous préoccupe. Par quoi souhaitez-vous commencer aujourd'hui ?"
 
 interface Message {
   id: string
@@ -24,6 +26,7 @@ interface Message {
   content: string
   timestamp: Date
   decisionLevel?: string
+  generationPath?: string
 }
 
 type AuthState = "checking" | "authenticated" | "anonymous"
@@ -139,7 +142,14 @@ export default function ConversationPage() {
           } else if (event.type === "assistant_message") {
             setMessages((prev) =>
               prev.map((m) =>
-                m.id === assistantId ? { ...m, content: event.content, decisionLevel: event.decision_level } : m,
+                m.id === assistantId
+                  ? {
+                      ...m,
+                      content: event.content,
+                      decisionLevel: event.decision_level,
+                      generationPath: event.generation_path,
+                    }
+                  : m,
               ),
             )
           }
@@ -221,6 +231,12 @@ export default function ConversationPage() {
                   }`}
                 >
                   {message.timestamp.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                  {message.role === "assistant" &&
+                    (message.decisionLevel === "RED" ||
+                      message.decisionLevel === "ORANGE" ||
+                      message.generationPath === "TEMPLATE") && (
+                      <span className="ml-2 font-medium">· consigne de sécurité</span>
+                    )}
                 </p>
               </div>
             </div>
@@ -245,7 +261,7 @@ export default function ConversationPage() {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Écrivez ce que vous ressentez…"
+            placeholder="Parlez de ce qui compte pour vous…"
             disabled={!conversationId || isStreaming}
             className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
@@ -259,7 +275,7 @@ export default function ConversationPage() {
           </Button>
         </div>
         <p className="mt-2 px-1 text-center text-xs text-muted-foreground">
-          Cet espace est confidentiel. En cas d&apos;urgence, contactez les secours (15, 112) ou le 3114.
+          {EMERGENCY_BANNER}
         </p>
       </div>
     </div>

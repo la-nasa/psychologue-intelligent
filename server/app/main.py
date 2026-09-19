@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -29,7 +30,13 @@ _SECURITY_HEADERS = {
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    settings = get_settings()
+    if settings.env != "testing":
+        provider = getattr(getattr(app.state, "providers", None), "local", None)
+        warmup = getattr(provider, "warmup", None)
+        if callable(warmup):
+            app.state.llm_warmup = asyncio.create_task(warmup())
     yield
     await close_redis()
 

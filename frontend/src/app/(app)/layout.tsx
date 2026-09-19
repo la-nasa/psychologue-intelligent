@@ -12,7 +12,6 @@ const TITLES: Record<string, string> = {
   "/checkin": "Check-in rapide",
   "/goals": "Objectifs",
   "/history": "Historique",
-  "/alerts": "Alertes",
   "/profile": "Profil",
   "/settings": "Paramètres",
 }

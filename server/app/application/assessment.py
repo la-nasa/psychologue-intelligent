@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -22,6 +23,8 @@ from app.core.crypto import decrypt, encrypt
 from app.core.errors import DomainError, NotFoundError
 from app.domain.assessment.phq9 import Phq9Result, score, severity_band
 from app.infrastructure.models import AssessmentReminder, Phq9Assessment
+
+LOGGER = logging.getLogger("pi.assessment")
 
 
 def _alert_level(result: Phq9Result, policy) -> str | None:
@@ -71,7 +74,7 @@ async def submit_phq9(
             event_type="phq9_completed",
         )
     except Exception:
-        pass
+        LOGGER.exception("analytics phq9_completed failed")
 
     level = _alert_level(result, config.policy)
     alert_id = None

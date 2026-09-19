@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT / "server"))
 from app.ai.providers.generative_local import HybridLocalProvider  # noqa: E402
 from app.core.config import get_settings  # noqa: E402
 
-
 MESSAGES = [
     {"role": "system", "content": "Tu es un accompagnant de soutien. Réponds en une phrase."},
     {"role": "user", "content": "Bonjour, je voudrais juste un mot d'accueil."},

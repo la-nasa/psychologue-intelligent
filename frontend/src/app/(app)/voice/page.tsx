@@ -15,6 +15,7 @@ import {
   startConversation,
   streamMessage,
 } from "@/lib/api"
+import { EMERGENCY_BANNER } from "@/lib/emergency"
 
 interface VoiceTurn {
   id: string
@@ -424,7 +425,7 @@ export default function VoicePage() {
         </Button>
         <Badge variant={micBusy || ui === "SPEAKING" ? "warning" : "outline"}>{STATE_LABEL[ui]}</Badge>
         <p className="text-center text-xs text-muted-foreground">
-          Cet espace est confidentiel. En cas d&apos;urgence, contactez les secours (15, 112) ou le 3114.
+          {EMERGENCY_BANNER}
         </p>
       </div>
     </div>

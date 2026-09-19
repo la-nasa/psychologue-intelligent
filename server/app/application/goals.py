@@ -5,6 +5,7 @@ Un objectif n'est **jamais** créé automatiquement : seule la personne le pose.
 """
 from __future__ import annotations
 
+import logging
 import uuid
 
 from sqlalchemy import select
@@ -14,6 +15,8 @@ from app.application import analytics, audit
 from app.core.crypto import decrypt, encrypt
 from app.core.errors import DomainError, NotFoundError
 from app.infrastructure.models import Goal, GoalProgress
+
+LOGGER = logging.getLogger("pi.goals")
 
 _MAX_ACTIVE_GOALS = 5
 
@@ -49,7 +52,7 @@ async def create_goal(
             session, organization_id=organization_id, user_id=user_id, category="PRODUCT", event_type="goal_created",
         )
     except Exception:
-        pass
+        LOGGER.exception("analytics goal_created failed")
     return goal_id
 
 

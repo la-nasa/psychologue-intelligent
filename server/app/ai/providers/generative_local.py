@@ -71,7 +71,7 @@ class HybridLocalProvider:
         self._engine_factory = engine_factory or _default_engine_factory
         self._http = http_client
         self._engine: ChatEngine | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self.version = self._initial_version()
 
     def _initial_version(self) -> str:
@@ -86,6 +86,32 @@ class HybridLocalProvider:
             return False
         path = self._settings.llm_model_path
         return path.is_file() and path.stat().st_size > 0
+
+    def _threads(self) -> int | None:
+        threads = self._settings.llm_threads
+        if threads is None:
+            override = os.environ.get("PI_LLM_THREADS")
+            threads = int(override) if override else None
+        return threads
+
+    def _ensure_engine(self) -> ChatEngine:
+        with self._lock:
+            if self._engine is None:
+                self._engine = self._engine_factory(
+                    self._settings.llm_model_path,
+                    self._settings.llm_context_tokens,
+                    self._settings.llm_n_gpu_layers,
+                    self._threads(),
+                )
+            return self._engine
+
+    async def warmup(self) -> None:
+        """Charge le GGUF hors requête utilisateur (TTFT du premier tour)."""
+        if not self._gguf_usable():
+            return
+        loop = asyncio.get_running_loop()
+        await loop.run_in_executor(None, self._ensure_engine)
+        LOGGER.info("GGUF engine warmed", extra={"version": self.version})
 
     async def health_check(self) -> bool:
         if await self._remote_healthy():
@@ -180,27 +206,17 @@ class HybridLocalProvider:
                     yield delta
 
     async def _stream_gguf(self, messages: list[ChatMessage], max_tokens: int) -> AsyncIterator[str]:
-        queue: asyncio.Queue[str | None | BaseException] = asyncio.Queue()
+        queue: asyncio.Queue[str | BaseException | None] = asyncio.Queue()
         payload = [dict(m) for m in messages]
 
         def _run() -> None:
             try:
+                engine = self._ensure_engine()
                 with self._lock:
-                    if self._engine is None:
-                        threads = self._settings.llm_threads
-                        if threads is None:
-                            override = os.environ.get("PI_LLM_THREADS")
-                            threads = int(override) if override else None
-                        self._engine = self._engine_factory(
-                            self._settings.llm_model_path,
-                            self._settings.llm_context_tokens,
-                            self._settings.llm_n_gpu_layers,
-                            threads,
-                        )
-                    chunks: Iterator[Any] = self._engine.create_chat_completion(
+                    chunks: Iterator[Any] = engine.create_chat_completion(
                         messages=payload,
                         max_tokens=max_tokens,
-                        temperature=0.7,
+                        temperature=0.65,
                         stream=True,
                     )
                     for chunk in chunks:
@@ -211,7 +227,7 @@ class HybridLocalProvider:
                         if delta:
                             queue.put_nowait(delta)
                 queue.put_nowait(None)
-            except Exception as exc:  # noqa: BLE001 — relayed to the async consumer
+            except Exception as exc:
                 queue.put_nowait(exc)
 
         loop = asyncio.get_running_loop()

@@ -15,14 +15,14 @@ from collections.abc import AsyncIterator
 from app.ai.prompt import ChatMessage
 
 _OPENERS = (
-    "Merci d'avoir partagé cela.",
-    "J'entends que ce moment compte pour vous.",
-    "Merci pour ce message.",
+    "Je vous entends.",
+    "Merci d'avoir posé cela ici.",
+    "Ce que vous décrivez mérite qu'on s'y arrête.",
 )
 _QUESTIONS = (
-    "Qu'est-ce qui pèse le plus pour vous en ce moment ?",
-    "Comment vous sentez-vous par rapport à cela aujourd'hui ?",
-    "Y a-t-il un aspect que vous aimeriez explorer davantage ?",
+    "Qu'est-ce qui, dans ce que vous venez de dire, vous touche le plus ?",
+    "Comment cela se manifeste-t-il pour vous au quotidien ?",
+    "Si vous deviez nommer ce qui pèse le plus en ce moment, par où commenceriez-vous ?",
 )
 
 
@@ -38,12 +38,12 @@ def _system_prompt(messages: list[ChatMessage]) -> str:
 
 
 _REFLECTIONS = {
-    "warm": "Ce que vous décrivez semble prendre de la place, et je prends le temps de le lire.",
-    "neutral": "Je note ce que vous décrivez.",
-    "direct": "C'est noté.",
+    "warm": "Je reformule pour être sûr de vous suivre : cela semble prendre beaucoup de place.",
+    "neutral": "Vous décrivez quelque chose d'important ; je le note tel quel.",
+    "direct": "C'est clair. Restons sur ce point.",
 }
 _SUGGESTIONS = (
-    "Une piste, si cela vous parle : essayer de repérer un moment de la journée où c'est un peu moins lourd.",
+    "Si cela vous convient, nous pouvons aussi repérer un moment de la journée où c'est un peu moins lourd — seulement si vous le souhaitez.",
 )
 
 
@@ -54,7 +54,9 @@ def compose(messages: list[ChatMessage]) -> str:
     produit une variation grossière mais réelle et déterministe."""
     text = _last_user_text(messages)
     system = _system_prompt(messages)
-    idx = sum(text.encode("utf-8")) % len(_OPENERS)
+    corpus = "".join(m["content"] for m in messages if m["role"] == "user")
+    idx = sum(corpus.encode("utf-8")) % len(_OPENERS)
+    qidx = (idx + len(messages) + len(text.split())) % len(_QUESTIONS)
     words = len(text.split())
 
     tone = "direct" if "ton direct" in system else ("neutral" if "ton neutre" in system else "warm")
@@ -69,7 +71,7 @@ def compose(messages: list[ChatMessage]) -> str:
         parts.append(_REFLECTIONS[tone])
     ask_question = not prefers_few_questions and not (one_question_only and words < 6)
     if ask_question:
-        parts.append(_QUESTIONS[idx])
+        parts.append(_QUESTIONS[qidx])
     if is_directive and not prefers_short:
         parts.append(_SUGGESTIONS[0])
     return " ".join(parts)

@@ -62,7 +62,7 @@ class Settings(BaseSettings):
     llm_external_api_key: str = ""
     llm_external_model: str = "claude-haiku-4-5"
     llm_external_base_url: str = ""
-    llm_max_reply_tokens: int = 160
+    llm_max_reply_tokens: int = 220
 
     # FAST local hybride (ADR-015). Vide => pas de serveur d'inférence HTTP.
     llm_base_url: str = ""

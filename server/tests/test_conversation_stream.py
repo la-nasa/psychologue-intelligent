@@ -69,7 +69,7 @@ async def test_red_never_invokes_the_local_generator(client: AsyncClient, make_o
         async def health_check(self) -> bool:
             return True
 
-        async def stream(self, messages, *, max_tokens):  # noqa: ANN001
+        async def stream(self, messages, *, max_tokens):
             calls["n"] += 1
             raise AssertionError("local generator must not run for RED")
             yield  # pragma: no cover — make this an async generator

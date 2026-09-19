@@ -78,7 +78,7 @@ def register_version(
         try:
             client.create_registered_model(name)
         except Exception:
-            pass  # déjà enregistré — pas une erreur
+            LOGGER.info("mlflow registered model already exists or create failed", exc_info=True)
         mv = client.create_model_version(name=name, source=f"runs:/{run_id}/model_card.md", run_id=run_id)
         return run_id, mv.version
     except Exception:

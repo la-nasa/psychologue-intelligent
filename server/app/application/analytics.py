@@ -120,7 +120,7 @@ async def overview(session: AsyncSession, *, organization_id: uuid.UUID, days: i
 
     return {
         "since": since.isoformat(),
-        "totals_by_event_type": {event_type: count for event_type, count in by_type_rows},
+        "totals_by_event_type": dict(by_type_rows),
         "daily_active_users": [{"date": d.date().isoformat(), "count": c} for d, c in dau_rows],
         "messages_per_day": [{"date": d.date().isoformat(), "count": c} for d, c in messages_per_day_rows],
         "ai_responses_by_path_and_level": [

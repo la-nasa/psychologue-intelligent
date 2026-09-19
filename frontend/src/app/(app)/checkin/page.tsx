@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { CheckCircle2, ArrowRight } from "lucide-react"
 import { ApiError, Phq9SubmitResult, submitPhq9 } from "@/lib/api"
+import { EMERGENCY_IMMEDIATE } from "@/lib/emergency"
 
 const QUESTIONS = [
   "Peu d'intérêt ou de plaisir à faire les choses",
@@ -62,6 +63,9 @@ export default function CheckinPage() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Score : <span className="tabular-nums font-medium text-foreground">{result.total_score}/27</span> — {result.severity_band}
               </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Indicateur d&apos;auto-questionnaire, pas un diagnostic. Seul un professionnel peut interpréter ce résultat avec vous.
+              </p>
             </div>
             {result.alert_created && (
               <Badge variant="warning">Votre clinicien a été notifié</Badge>
@@ -74,8 +78,7 @@ export default function CheckinPage() {
             <CardContent className="space-y-2 p-5 text-sm">
               <p className="font-medium">Vous avez indiqué avoir pensé à vous faire du mal.</p>
               <p className="text-muted-foreground">
-                Vous n&apos;êtes pas seul(e). Si vous êtes en danger immédiat, appelez le 15 ou le 112. Le 3114 (numéro
-                national de prévention du suicide) est joignable gratuitement, 24h/24.
+                {EMERGENCY_IMMEDIATE}
               </p>
             </CardContent>
           </Card>
@@ -99,7 +102,7 @@ export default function CheckinPage() {
         <h1 className="text-2xl font-semibold tracking-tight">Check-in rapide</h1>
         <p className="text-sm text-muted-foreground">
           Sur les deux dernières semaines, à quelle fréquence avez-vous été gêné(e) par les problèmes suivants ?
-          Instrument PHQ-9, questionnaire clinique validé.
+          Questionnaire PHQ-9 utilisé ici comme check-in de suivi, pas comme diagnostic.
         </p>
       </div>
 

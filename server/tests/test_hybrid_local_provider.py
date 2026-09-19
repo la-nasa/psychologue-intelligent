@@ -74,7 +74,7 @@ async def test_remote_unhealthy_falls_through_to_templates() -> None:
 
 
 class _FakeLlama:
-    def create_chat_completion(self, messages, max_tokens, temperature, stream=False):  # noqa: ANN001
+    def create_chat_completion(self, messages, max_tokens, temperature, stream=False):
         assert stream is True
         assert messages[-1]["content"] == "bonjour"
 
@@ -101,8 +101,24 @@ async def test_gguf_stream_uses_injected_engine(tmp_path: Path) -> None:
     assert provider.version == "local-gguf:toy"
 
 
+async def test_warmup_loads_engine_once(tmp_path: Path) -> None:
+    weights = tmp_path / "toy.gguf"
+    weights.write_bytes(b"not-a-real-model")
+    settings = _settings(llm_enable_in_tests=True, llm_model_path=weights)
+    calls = {"n": 0}
+
+    def factory(path: Path, ctx: int, layers: int, threads: int | None) -> _FakeLlama:
+        calls["n"] += 1
+        return _FakeLlama()
+
+    provider = HybridLocalProvider(settings=settings, engine_factory=factory)
+    await provider.warmup()
+    await provider.warmup()
+    assert calls["n"] == 1
+
+
 @pytest.mark.llm
-async def test_real_gguf_optional_smoke() -> None:
+def test_real_gguf_optional_smoke() -> None:
     """Hors CI : un GGUF réel sur PI_LLM_MODEL_PATH + extra ``llm``."""
     import os
 
