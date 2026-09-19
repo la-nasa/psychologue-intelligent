@@ -1,20 +1,7 @@
 @import "tailwindcss";
 
-/* --------------------------------------------------------------------------
-   Mensana — design tokens ("tech-santé sobre" : bleu nuit désaturé, blanc
-   cassé, un seul accent). Architecture à deux niveaux, requise pour que le
-   thème sombre soit bien un choix explicite (classe `.dark`/`.light` sur
-   <html>) et pas seulement `prefers-color-scheme` :
-
-     @theme inline   ->  alias `--color-x: var(--x)` pour générer les
-                         utilitaires Tailwind (bg-primary, text-muted, ...)
-     :root / .dark   ->  valeurs réelles des `--x`, overridables par une
-                         classe (le cascade CSS normal s'applique, contrairement
-                         à des valeurs posées directement dans `@theme`, qui
-                         sont figées au moment du build — c'est ce qui cassait
-                         silencieusement bg-primary/bg-muted/etc. avant le
-                         correctif du 2026-09-13, voir ADR/mémoire du projet).
-   -------------------------------------------------------------------------- */
+/* Mensana — Warm Paper + Sage Deep. Two-level tokens so `.dark`/`.light` on
+   <html> actually override utilities (see frontend/DESIGN.md). */
 
 @theme inline {
   --color-background: var(--background);
@@ -51,87 +38,103 @@
 }
 
 :root {
-  --background: hsl(36 25% 98%);
-  --foreground: hsl(222 30% 12%);
-  --card: hsl(0 0% 100%);
-  --card-foreground: hsl(222 30% 12%);
-  --popover: hsl(0 0% 100%);
-  --popover-foreground: hsl(222 30% 12%);
-  --primary: hsl(213 46% 27%);
-  --primary-foreground: hsl(210 30% 98%);
-  --secondary: hsl(30 15% 94%);
-  --secondary-foreground: hsl(222 25% 18%);
-  --muted: hsl(33 18% 95%);
-  --muted-foreground: hsl(220 10% 42%);
-  --accent: hsl(210 30% 93%);
-  --accent-foreground: hsl(213 46% 22%);
-  --destructive: hsl(2 62% 46%);
+  --background: hsl(36 22% 97%);
+  --foreground: hsl(215 22% 16%);
+  --card: hsl(40 33% 99%);
+  --card-foreground: hsl(215 22% 16%);
+  --popover: hsl(40 33% 99%);
+  --popover-foreground: hsl(215 22% 16%);
+  --primary: hsl(192 28% 28%);
+  --primary-foreground: hsl(40 30% 98%);
+  --secondary: hsl(32 16% 93%);
+  --secondary-foreground: hsl(215 18% 22%);
+  --muted: hsl(34 16% 94%);
+  --muted-foreground: hsl(215 10% 42%);
+  --accent: hsl(192 18% 93%);
+  --accent-foreground: hsl(192 28% 22%);
+  --destructive: hsl(2 52% 44%);
   --destructive-foreground: hsl(0 0% 100%);
-  --success: hsl(152 38% 32%);
+  --success: hsl(152 28% 32%);
   --success-foreground: hsl(0 0% 100%);
-  --warning: hsl(32 70% 42%);
+  --warning: hsl(32 58% 40%);
   --warning-foreground: hsl(0 0% 100%);
-  --border: hsl(24 15% 88%);
-  --input: hsl(24 15% 88%);
-  --ring: hsl(213 46% 27%);
-  --radius: 0.625rem;
-  --shadow-color: 220 40% 12%;
+  --border: hsl(30 14% 86%);
+  --input: hsl(30 14% 86%);
+  --ring: hsl(192 28% 28%);
+  --radius: 1rem;
+  --shadow-color: 30 18% 28%;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not(.light) {
-    --background: hsl(222 33% 6.5%);
-    --foreground: hsl(210 20% 92%);
-    --card: hsl(222 30% 9%);
-    --card-foreground: hsl(210 20% 92%);
-    --popover: hsl(222 30% 9%);
-    --popover-foreground: hsl(210 20% 92%);
-    --primary: hsl(210 55% 66%);
-    --primary-foreground: hsl(222 40% 10%);
-    --secondary: hsl(222 22% 14%);
-    --secondary-foreground: hsl(210 20% 92%);
-    --muted: hsl(222 22% 13%);
-    --muted-foreground: hsl(215 14% 62%);
-    --accent: hsl(213 30% 18%);
-    --accent-foreground: hsl(210 60% 82%);
-    --destructive: hsl(2 60% 58%);
+    --background: hsl(210 18% 8%);
+    --foreground: hsl(36 16% 92%);
+    --card: hsl(210 16% 11%);
+    --card-foreground: hsl(36 16% 92%);
+    --popover: hsl(210 16% 11%);
+    --popover-foreground: hsl(36 16% 92%);
+    --primary: hsl(186 22% 62%);
+    --primary-foreground: hsl(210 22% 10%);
+    --secondary: hsl(210 14% 14%);
+    --secondary-foreground: hsl(36 16% 92%);
+    --muted: hsl(210 14% 13%);
+    --muted-foreground: hsl(210 10% 62%);
+    --accent: hsl(192 16% 16%);
+    --accent-foreground: hsl(186 24% 82%);
+    --destructive: hsl(2 48% 58%);
     --destructive-foreground: hsl(0 0% 100%);
-    --success: hsl(152 32% 52%);
-    --success-foreground: hsl(150 40% 8%);
-    --warning: hsl(35 70% 58%);
-    --warning-foreground: hsl(32 40% 10%);
-    --border: hsl(222 20% 17%);
-    --input: hsl(222 20% 17%);
-    --ring: hsl(210 55% 66%);
-    --shadow-color: 0 0% 0%;
+    --success: hsl(152 24% 48%);
+    --success-foreground: hsl(150 30% 8%);
+    --warning: hsl(32 52% 56%);
+    --warning-foreground: hsl(32 30% 10%);
+    --border: hsl(210 12% 18%);
+    --input: hsl(210 12% 18%);
+    --ring: hsl(186 22% 62%);
+    --shadow-color: 210 20% 4%;
   }
 }
 
 .dark {
-  --background: hsl(222 33% 6.5%);
-  --foreground: hsl(210 20% 92%);
-  --card: hsl(222 30% 9%);
-  --card-foreground: hsl(210 20% 92%);
-  --popover: hsl(222 30% 9%);
-  --popover-foreground: hsl(210 20% 92%);
-  --primary: hsl(210 55% 66%);
-  --primary-foreground: hsl(222 40% 10%);
-  --secondary: hsl(222 22% 14%);
-  --secondary-foreground: hsl(210 20% 92%);
-  --muted: hsl(222 22% 13%);
-  --muted-foreground: hsl(215 14% 62%);
-  --accent: hsl(213 30% 18%);
-  --accent-foreground: hsl(210 60% 82%);
-  --destructive: hsl(2 60% 58%);
+  --background: hsl(210 18% 8%);
+  --foreground: hsl(36 16% 92%);
+  --card: hsl(210 16% 11%);
+  --card-foreground: hsl(36 16% 92%);
+  --popover: hsl(210 16% 11%);
+  --popover-foreground: hsl(36 16% 92%);
+  --primary: hsl(186 22% 62%);
+  --primary-foreground: hsl(210 22% 10%);
+  --secondary: hsl(210 14% 14%);
+  --secondary-foreground: hsl(36 16% 92%);
+  --muted: hsl(210 14% 13%);
+  --muted-foreground: hsl(210 10% 62%);
+  --accent: hsl(192 16% 16%);
+  --accent-foreground: hsl(186 24% 82%);
+  --destructive: hsl(2 48% 58%);
   --destructive-foreground: hsl(0 0% 100%);
-  --success: hsl(152 32% 52%);
-  --success-foreground: hsl(150 40% 8%);
-  --warning: hsl(35 70% 58%);
-  --warning-foreground: hsl(32 40% 10%);
-  --border: hsl(222 20% 17%);
-  --input: hsl(222 20% 17%);
-  --ring: hsl(210 55% 66%);
-  --shadow-color: 0 0% 0%;
+  --success: hsl(152 24% 48%);
+  --success-foreground: hsl(150 30% 8%);
+  --warning: hsl(32 52% 56%);
+  --warning-foreground: hsl(32 30% 10%);
+  --border: hsl(210 12% 18%);
+  --input: hsl(210 12% 18%);
+  --ring: hsl(186 22% 62%);
+  --shadow-color: 210 20% 4%;
+}
+
+html.high-contrast {
+  --foreground: hsl(215 30% 8%);
+  --muted-foreground: hsl(215 16% 28%);
+  --border: hsl(30 10% 72%);
+  --primary: hsl(192 40% 22%);
+}
+html.dark.high-contrast {
+  --foreground: hsl(36 20% 96%);
+  --muted-foreground: hsl(36 10% 78%);
+  --border: hsl(210 10% 32%);
+  --primary: hsl(186 30% 72%);
+}
+html.large-text {
+  font-size: 112.5%;
 }
 
 * {
@@ -153,8 +156,16 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Chiffres alignés (montants, minuteurs, scores) plutôt qu'une graisse
-   proportionnelle qui fait "sauter" les colonnes de chiffres. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
 .tabular-nums {
   font-variant-numeric: tabular-nums;
 }
@@ -171,29 +182,23 @@ p {
   color: var(--color-primary-foreground);
 }
 
-/* Anneau de focus visible et cohérent — accessibilité non négociable,
-   jamais juste un contour de couleur du navigateur par défaut. */
 :focus-visible {
   outline: 2px solid var(--color-ring);
   outline-offset: 2px;
-  border-radius: 2px;
+  border-radius: 4px;
 }
 
-/* Ombres teintées (bleu nuit), jamais un noir pur à faible opacité — c'est
-   la différence entre "carte qui flotte légèrement" et "carte avec une
-   ombre générique de framework". */
 .shadow-soft {
   box-shadow:
-    0 1px 2px hsl(var(--shadow-color) / 0.06),
-    0 1px 1px hsl(var(--shadow-color) / 0.04);
+    0 1px 2px hsl(var(--shadow-color) / 0.05),
+    0 8px 24px -18px hsl(var(--shadow-color) / 0.18);
 }
 .shadow-soft-lg {
   box-shadow:
-    0 4px 16px hsl(var(--shadow-color) / 0.08),
-    0 1px 2px hsl(var(--shadow-color) / 0.06);
+    0 1px 2px hsl(var(--shadow-color) / 0.05),
+    0 20px 40px -20px hsl(var(--shadow-color) / 0.18);
 }
 
-/* Défilement fin, discret, cohérent entre navigateurs. */
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--color-border) transparent;
@@ -205,4 +210,38 @@ p {
 *::-webkit-scrollbar-thumb {
   background: var(--color-border);
   border-radius: 999px;
+}
+
+@keyframes mensana-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-enter {
+  animation: mensana-enter 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes mensana-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.animate-breathe {
+  animation: mensana-breathe 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-enter,
+  .animate-breathe,
+  .animate-pulse,
+  .animate-bounce {
+    animation: none !important;
+  }
+}
+html.reduce-motion .animate-enter,
+html.reduce-motion .animate-breathe,
+html.reduce-motion .animate-pulse,
+html.reduce-motion .animate-bounce {
+  animation: none !important;
+}
+html.reduce-motion * {
+  transition-duration: 0.01ms !important;
 }

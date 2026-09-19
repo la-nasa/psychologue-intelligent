@@ -64,7 +64,7 @@ export default function ClinicianAlertsPage() {
     alert.sla_due_at != null && new Date(alert.sla_due_at).getTime() < Date.now()
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 md:py-10">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-5 py-8 md:px-8 md:py-10">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Centre d&apos;alertes</h1>
         <p className="text-sm text-muted-foreground">Signaux ORANGE / RED, jamais décidés par le modèle génératif.</p>

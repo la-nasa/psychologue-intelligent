@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ChevronRight } from "lucide-react"
 import { ClinicianPatientItem, listClinicianPatients } from "@/lib/api"
@@ -24,7 +23,7 @@ export default function ClinicianPatientsPage() {
   }, [])
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 md:py-10">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-5 py-8 md:px-8 md:py-10">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Patients suivis</h1>
         <p className="text-sm text-muted-foreground">
@@ -35,15 +34,13 @@ export default function ClinicianPatientsPage() {
       {error && <p className="text-sm text-destructive">{error}</p>}
 
       {patients && patients.length === 0 && (
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Aucun patient suivi pour l&apos;instant. Un administrateur doit créer la relation de suivi.
-          </CardContent>
-        </Card>
+        <p className="border-y py-10 text-center text-sm text-muted-foreground">
+          Aucun patient suivi pour l&apos;instant. Un administrateur doit créer la relation de suivi.
+        </p>
       )}
 
       {patients && patients.length > 0 && (
-        <div className="divide-y rounded-lg border bg-card">
+        <div className="divide-y rounded-2xl border bg-card">
           {patients.map((p) => (
             <Link
               key={p.patient_id}

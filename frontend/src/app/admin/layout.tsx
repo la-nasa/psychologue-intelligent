@@ -1,11 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Users, Link2, BellRing, LineChart, BarChart3 } from "lucide-react"
-import { Sidebar, type NavItem } from "@/components/layout/Sidebar"
-import { Header } from "@/components/layout/Header"
+import { AppShell } from "@/components/layout/AppShell"
 import { AccessDeniedScreen, LoadingScreen } from "@/components/layout/GuardScreen"
+import { type NavItem } from "@/components/layout/Sidebar"
 import { useRoleGuard } from "@/lib/useCurrentUser"
 
 const TITLES: Record<string, string> = {
@@ -18,10 +17,7 @@ const TITLES: Record<string, string> = {
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const [mobileOpen, setMobileOpen] = useState(false)
   const { state, me } = useRoleGuard(["ADMIN", "SUPER_ADMIN"])
-
-  useEffect(() => setMobileOpen(false), [pathname])
 
   if (state === "loading") return <LoadingScreen />
   if (state === "denied") return <AccessDeniedScreen />
@@ -36,37 +32,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   ]
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <div className="hidden md:block">
-        <Sidebar
-          navigation={navigation}
-          accountNavigation={[]}
-          patientName={me?.email ?? null}
-          brandSubtitle="Console admin"
-          identitySubtitle={isSuperAdmin ? "Super-admin" : "Administrateur"}
-        />
-      </div>
-
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div className="absolute inset-0 bg-foreground/20 backdrop-blur-[1px]" onClick={() => setMobileOpen(false)} aria-hidden />
-          <div className="relative h-full w-64 shadow-soft-lg">
-            <Sidebar
-              navigation={navigation}
-              accountNavigation={[]}
-              patientName={me?.email ?? null}
-              brandSubtitle="Console admin"
-              identitySubtitle={isSuperAdmin ? "Super-admin" : "Administrateur"}
-              onNavigate={() => setMobileOpen(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <Header title={TITLES[pathname]} onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto">{children}</main>
-      </div>
-    </div>
+    <AppShell
+      navigation={navigation}
+      identityName={me?.email ?? null}
+      brandSubtitle="Console admin"
+      identitySubtitle={isSuperAdmin ? "Super-admin" : "Administrateur"}
+      title={TITLES[pathname]}
+    >
+      {children}
+    </AppShell>
   )
 }

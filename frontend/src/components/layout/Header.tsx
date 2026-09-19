@@ -24,20 +24,20 @@ export function Header({ title, onMenuClick }: HeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-40 flex h-16 items-center gap-4 border-b bg-background/80 px-4 backdrop-blur-sm supports-[backdrop-filter]:bg-background/60 md:px-6">
+    <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border/80 bg-background/75 px-4 backdrop-blur-md supports-[backdrop-filter]:bg-background/55 md:px-6">
       <Button variant="ghost" size="icon" className="md:hidden" onClick={onMenuClick} aria-label="Ouvrir le menu">
-        <Menu className="h-5 w-5" strokeWidth={1.75} />
+        <Menu className="h-5 w-5" strokeWidth={1.5} />
       </Button>
 
       <div className="flex-1">
-        {title && <h1 className="text-base font-medium tracking-tight">{title}</h1>}
+        {title && <p className="text-sm font-medium tracking-tight text-muted-foreground">{title}</p>}
       </div>
 
       <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Changer de thème">
         {theme === "dark" ? (
-          <Sun className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          <Sun className="h-[18px] w-[18px]" strokeWidth={1.5} />
         ) : (
-          <Moon className="h-[18px] w-[18px]" strokeWidth={1.75} />
+          <Moon className="h-[18px] w-[18px]" strokeWidth={1.5} />
         )}
       </Button>
     </header>

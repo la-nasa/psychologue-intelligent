@@ -81,7 +81,7 @@ export default function PatientDetailPage() {
 
   if (error && !data) {
     return (
-      <div className="mx-auto w-full max-w-4xl px-6 py-10">
+      <div className="mx-auto w-full max-w-5xl px-5 py-10">
         <p className="text-sm text-destructive">{error}</p>
       </div>
     )
@@ -90,7 +90,7 @@ export default function PatientDetailPage() {
   if (!data) return null
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6 px-6 py-8 md:py-10">
+    <div className="mx-auto w-full max-w-5xl space-y-8 px-5 py-8 md:px-8 md:py-10">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">{data.display_name || "Patient sans nom"}</h1>
         <p className="text-sm text-muted-foreground">Vue 360 — chaque affirmation renvoie à sa source.</p>

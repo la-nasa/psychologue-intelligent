@@ -2,43 +2,11 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { AlertTriangle, Users, TimerReset, Inbox, ArrowRight } from "lucide-react"
+import { ArrowRight } from "lucide-react"
+import { PageShell, PageHeader } from "@/components/layout/PageShell"
+import { PageSkeleton } from "@/components/layout/EmptyState"
+import { StatStrip } from "@/components/layout/StatStrip"
 import { ClinicianOverview, getClinicianOverview } from "@/lib/api"
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ElementType
-  label: string
-  value: number
-  tone?: "default" | "danger" | "warning"
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center gap-4 p-5">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
-            tone === "danger"
-              ? "bg-destructive/10 text-destructive"
-              : tone === "warning"
-                ? "bg-warning/10 text-warning"
-                : "bg-accent text-accent-foreground"
-          }`}
-        >
-          <Icon className="h-5 w-5" strokeWidth={1.75} />
-        </div>
-        <div>
-          <p className="text-2xl font-semibold tabular-nums tracking-tight">{value}</p>
-          <p className="text-sm text-muted-foreground">{label}</p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
 
 export default function ClinicianOverviewPage() {
   const [overview, setOverview] = useState<ClinicianOverview | null>(null)
@@ -51,47 +19,58 @@ export default function ClinicianOverviewPage() {
   }, [])
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8 px-6 py-8 md:py-10">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Vue d&apos;ensemble</h1>
-        <p className="text-sm text-muted-foreground">Votre file de travail du jour.</p>
-      </div>
+    <PageShell wide>
+      <PageHeader title="Vue d'ensemble" description="Votre file de travail du jour." />
 
       {error && <p className="text-sm text-destructive">{error}</p>}
+      {!overview && !error && <PageSkeleton lines={2} />}
 
       {overview && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard icon={Users} label="Patients suivis" value={overview.patients_followed} />
-          <StatCard icon={AlertTriangle} label="Alertes rouges ouvertes" value={overview.open_alerts.red} tone="danger" />
-          <StatCard icon={Inbox} label="Alertes orange ouvertes" value={overview.open_alerts.orange} tone="warning" />
-          <StatCard icon={TimerReset} label="SLA dépassés" value={overview.sla_breached} tone={overview.sla_breached > 0 ? "danger" : "default"} />
-        </div>
+        <StatStrip
+          items={[
+            { label: "Patients suivis", value: overview.patients_followed },
+            {
+              label: "Alertes rouges",
+              value: overview.open_alerts.red,
+              tone: overview.open_alerts.red > 0 ? "danger" : "default",
+            },
+            {
+              label: "Alertes orange",
+              value: overview.open_alerts.orange,
+              tone: overview.open_alerts.orange > 0 ? "warning" : "default",
+            },
+            {
+              label: "SLA dépassés",
+              value: overview.sla_breached,
+              tone: overview.sla_breached > 0 ? "danger" : "default",
+            },
+          ]}
+        />
       )}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Link href="/clinician/alerts" className="group block">
-          <Card className="transition-all hover:border-primary/30 hover:shadow-soft-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                Centre d&apos;alertes
-                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" strokeWidth={1.75} />
-              </CardTitle>
-              <CardDescription>Alertes ORANGE / RED, avec délais SLA et actions de cycle de vie.</CardDescription>
-            </CardHeader>
-          </Card>
+      <div className="divide-y border-y">
+        <Link href="/clinician/alerts" className="group flex min-h-16 items-center justify-between gap-4 py-4">
+          <div>
+            <p className="font-medium tracking-tight">Centre d&apos;alertes</p>
+            <p className="text-sm text-muted-foreground">ORANGE / RED, SLA et cycle de vie.</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" strokeWidth={1.5} />
         </Link>
-        <Link href="/clinician/patients" className="group block">
-          <Card className="transition-all hover:border-primary/30 hover:shadow-soft-lg">
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between text-base">
-                Patients suivis
-                <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" strokeWidth={1.75} />
-              </CardTitle>
-              <CardDescription>Dossier, synthèse corrélationnelle et historique PHQ-9 de chaque patient.</CardDescription>
-            </CardHeader>
-          </Card>
+        <Link href="/clinician/patients" className="group flex min-h-16 items-center justify-between gap-4 py-4">
+          <div>
+            <p className="font-medium tracking-tight">Patients suivis</p>
+            <p className="text-sm text-muted-foreground">Dossier, PHQ-9, synthèse corrélationnelle.</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" strokeWidth={1.5} />
+        </Link>
+        <Link href="/clinician/review" className="group flex min-h-16 items-center justify-between gap-4 py-4">
+          <div>
+            <p className="font-medium tracking-tight">Revue des réponses IA</p>
+            <p className="text-sm text-muted-foreground">Approuver, corriger ou signaler.</p>
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" strokeWidth={1.5} />
         </Link>
       </div>
-    </div>
+    </PageShell>
   )
 }

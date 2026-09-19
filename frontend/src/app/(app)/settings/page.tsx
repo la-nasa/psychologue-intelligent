@@ -27,6 +27,7 @@ import {
   scheduleReminder,
   SessionItem,
 } from "@/lib/api"
+import { applyA11yPrefs, DEFAULT_A11Y, getA11yPrefs } from "@/lib/a11y"
 
 const CONSENT_LABELS: Record<ConsentPurpose, { label: string; description: string }> = {
   CARE: { label: "Suivi thérapeutique", description: "Nécessaire pour utiliser l'assistant et le suivi clinique." },
@@ -450,16 +451,24 @@ export default function SettingsPage() {
     weeklyReport: true,
   })
 
-  const [accessibility, setAccessibility] = useState({
-    highContrast: false,
-    largeText: false,
-    reducedMotion: false,
-  })
+  const [accessibility, setAccessibility] = useState(DEFAULT_A11Y)
 
   const [sessionsRefreshKey, setSessionsRefreshKey] = useState(0)
 
+  useEffect(() => {
+    const prefs = getA11yPrefs()
+    setAccessibility(prefs)
+    applyA11yPrefs(prefs)
+  }, [])
+
+  const updateA11y = (patch: Partial<typeof accessibility>) => {
+    const next = { ...accessibility, ...patch }
+    setAccessibility(next)
+    applyA11yPrefs(next)
+  }
+
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-6 py-8 md:py-10">
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-5 py-8 pb-24 md:px-8 md:py-10 md:pb-10">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold tracking-tight">Paramètres</h1>
         <p className="text-sm text-muted-foreground">Personnalisez votre expérience et gérez vos données.</p>
@@ -519,19 +528,19 @@ export default function SettingsPage() {
             label="Contraste élevé"
             description="Augmente le contraste des éléments."
             checked={accessibility.highContrast}
-            onCheckedChange={(v) => setAccessibility({ ...accessibility, highContrast: v })}
+            onCheckedChange={(v) => updateA11y({ highContrast: v })}
           />
           <SettingsRow
             label="Texte agrandi"
             description="Taille de police plus grande."
             checked={accessibility.largeText}
-            onCheckedChange={(v) => setAccessibility({ ...accessibility, largeText: v })}
+            onCheckedChange={(v) => updateA11y({ largeText: v })}
           />
           <SettingsRow
             label="Mouvements réduits"
             description="Diminue les animations de l'interface."
             checked={accessibility.reducedMotion}
-            onCheckedChange={(v) => setAccessibility({ ...accessibility, reducedMotion: v })}
+            onCheckedChange={(v) => updateA11y({ reducedMotion: v })}
           />
         </CardContent>
       </Card>

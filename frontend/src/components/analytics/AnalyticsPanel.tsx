@@ -45,16 +45,14 @@ export function AnalyticsPanel() {
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 divide-y rounded-2xl border bg-card sm:grid-cols-2 sm:divide-x">
         {(Object.keys(EVENT_LABELS) as (keyof typeof EVENT_LABELS)[]).map((key) => (
-          <Card key={key}>
-            <CardContent className="p-4">
-              <p className="text-2xl font-semibold tabular-nums tracking-tight">
-                {data.totals_by_event_type[key] ?? 0}
-              </p>
-              <p className="text-sm text-muted-foreground">{EVENT_LABELS[key]}</p>
-            </CardContent>
-          </Card>
+          <div key={key} className="px-5 py-4">
+            <p className="font-mono text-2xl font-medium tabular-nums tracking-tight">
+              {data.totals_by_event_type[key] ?? 0}
+            </p>
+            <p className="text-sm text-muted-foreground">{EVENT_LABELS[key]}</p>
+          </div>
         ))}
       </div>
 

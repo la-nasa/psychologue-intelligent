@@ -1,13 +1,15 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import { Target, Plus, CheckCircle2, TrendingUp } from "lucide-react"
+import { Target, Plus, CheckCircle2 } from "lucide-react"
+import { PageShell, PageHeader } from "@/components/layout/PageShell"
+import { AuthGate, EmptyState, PageSkeleton } from "@/components/layout/EmptyState"
+import { StatStrip } from "@/components/layout/StatStrip"
 import { ApiError, clearToken, createGoal, getToken, GoalItem, listGoals, recordGoalProgress } from "@/lib/api"
 
 export default function GoalsPage() {
@@ -77,31 +79,24 @@ export default function GoalsPage() {
   }
 
   if (authed === false) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour voir vos objectifs.</p>
-        <Button asChild>
-          <Link href="/login">Se connecter</Link>
-        </Button>
-      </div>
-    )
+    return <AuthGate message="Connectez-vous pour voir vos objectifs." />
   }
 
   const activeGoals = goals.filter((g) => g.status === "ACTIVE")
   const completedGoals = goals.filter((g) => g.status !== "ACTIVE")
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8 px-6 py-8 md:py-10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">Objectifs</h1>
-          <p className="text-sm text-muted-foreground">Suivez votre progression, à votre rythme.</p>
-        </div>
-        <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? "outline" : "default"}>
-          <Plus className="h-4 w-4" strokeWidth={1.75} />
-          Nouvel objectif
-        </Button>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Objectifs"
+        description="Suivez votre progression, à votre rythme."
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)} variant={showForm ? "outline" : "default"}>
+            <Plus className="h-4 w-4" strokeWidth={1.5} />
+            Nouvel objectif
+          </Button>
+        }
+      />
 
       {error && (
         <p className="rounded-md border border-destructive/20 bg-destructive/10 px-4 py-2.5 text-sm text-destructive">
@@ -128,41 +123,25 @@ export default function GoalsPage() {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Chargement…</p>
+        <PageSkeleton lines={3} />
       ) : goals.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <Target className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">
-            Aucun objectif pour le moment. Un objectif clair aide à mesurer vos progrès dans le temps.
-          </p>
-        </div>
+        <EmptyState
+          icon={Target}
+          title="Aucun objectif pour le moment"
+          description="Un objectif clair aide à mesurer vos progrès dans le temps."
+        />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium uppercase tracking-wide">Actifs</span>
-                <Target className="h-3.5 w-3.5" strokeWidth={1.75} />
-              </div>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{activeGoals.length}</p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium uppercase tracking-wide">Progression</span>
-                <TrendingUp className="h-3.5 w-3.5" strokeWidth={1.75} />
-              </div>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">
-                {Math.round(activeGoals.reduce((acc, g) => acc + g.progress, 0) / (activeGoals.length || 1))}%
-              </p>
-            </div>
-            <div className="rounded-lg border p-4">
-              <div className="flex items-center justify-between text-muted-foreground">
-                <span className="text-xs font-medium uppercase tracking-wide">Atteints</span>
-                <CheckCircle2 className="h-3.5 w-3.5" strokeWidth={1.75} />
-              </div>
-              <p className="mt-1 text-2xl font-semibold tabular-nums">{completedGoals.length}</p>
-            </div>
-          </div>
+          <StatStrip
+            items={[
+              { label: "Actifs", value: activeGoals.length },
+              {
+                label: "Progression",
+                value: `${Math.round(activeGoals.reduce((acc, g) => acc + g.progress, 0) / (activeGoals.length || 1))}%`,
+              },
+              { label: "Atteints", value: completedGoals.length },
+            ]}
+          />
 
           {activeGoals.length > 0 && (
             <div className="space-y-3">
@@ -211,6 +190,6 @@ export default function GoalsPage() {
           )}
         </>
       )}
-    </div>
+    </PageShell>
   )
 }

@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { History, ChevronRight } from "lucide-react"
+import { PageShell, PageHeader } from "@/components/layout/PageShell"
+import { AuthGate, EmptyState, PageSkeleton } from "@/components/layout/EmptyState"
 import { ApiError, clearToken, ConversationSummary, getToken, listConversations } from "@/lib/api"
 
 export default function HistoryPage() {
@@ -33,34 +34,24 @@ export default function HistoryPage() {
   }, [])
 
   if (authed === false) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour voir votre historique.</p>
-        <Button asChild>
-          <Link href="/login">Se connecter</Link>
-        </Button>
-      </div>
-    )
+    return <AuthGate message="Connectez-vous pour voir votre historique." />
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-6 py-8 md:py-10">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight">Historique</h1>
-        <p className="text-sm text-muted-foreground">Toutes vos conversations, de la plus récente à la plus ancienne.</p>
-      </div>
+    <PageShell>
+      <PageHeader
+        title="Historique"
+        description="Toutes vos conversations, de la plus récente à la plus ancienne."
+      />
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Chargement…</p>
+        <PageSkeleton lines={4} />
       ) : error ? (
         <p className="text-sm text-destructive">{error}</p>
       ) : conversations.length === 0 ? (
-        <div className="rounded-lg border border-dashed p-10 text-center">
-          <History className="mx-auto mb-3 h-8 w-8 text-muted-foreground/50" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">Aucune conversation pour le moment.</p>
-        </div>
+        <EmptyState icon={History} title="Aucune conversation" description="Vos entretiens apparaîtront ici." actionHref="/conversation" actionLabel="Commencer" />
       ) : (
-        <div className="divide-y rounded-lg border bg-card">
+        <div className="divide-y rounded-2xl border bg-card">
           {conversations.map((c) => (
             <Link
               key={c.id}
@@ -92,6 +83,6 @@ export default function HistoryPage() {
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   )
 }

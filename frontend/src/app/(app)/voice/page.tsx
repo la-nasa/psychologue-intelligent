@@ -16,6 +16,7 @@ import {
   streamMessage,
 } from "@/lib/api"
 import { EMERGENCY_BANNER } from "@/lib/emergency"
+import { AuthGate, PageSkeleton } from "@/components/layout/EmptyState"
 
 interface VoiceTurn {
   id: string
@@ -297,18 +298,11 @@ export default function VoicePage() {
   )
 
   if (setup === "checking") {
-    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chargement…</div>
+    return <PageSkeleton lines={3} />
   }
 
   if (setup === "anonymous") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour utiliser les sessions vocales.</p>
-        <Button asChild>
-          <Link href="/login">Se connecter</Link>
-        </Button>
-      </div>
-    )
+    return <AuthGate message="Connectez-vous pour utiliser les sessions vocales." />
   }
 
   if (setup === "unsupported") {
@@ -356,7 +350,7 @@ export default function VoicePage() {
   const canTalk = Boolean(conversationId) || ui === "RECONNECTING"
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-8 md:py-10">
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-5 py-8 pb-24 md:px-8 md:py-10 md:pb-10">
       <div className="flex items-center justify-between">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Session vocale</h1>
@@ -418,7 +412,7 @@ export default function VoicePage() {
           onClick={toggleListening}
           disabled={!canTalk && ui !== "ERROR"}
           variant={micBusy ? "destructive" : "default"}
-          className="h-16 w-16 rounded-full p-0"
+          className={`h-16 w-16 rounded-full p-0 ${micBusy ? "animate-breathe" : ""}`}
           aria-label={micBusy ? "Arrêter l'écoute" : ui === "SPEAKING" ? "Interrompre et parler" : "Parler"}
         >
           {micBusy ? <MicOff className="h-6 w-6" strokeWidth={1.75} /> : <Mic className="h-6 w-6" strokeWidth={1.75} />}

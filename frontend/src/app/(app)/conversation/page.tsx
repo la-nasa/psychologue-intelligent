@@ -1,10 +1,8 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Textarea } from "@/components/ui/textarea"
 import { Send, SquarePen } from "lucide-react"
 import {
   ApiError,
@@ -16,6 +14,7 @@ import {
   streamMessage,
 } from "@/lib/api"
 import { EMERGENCY_BANNER } from "@/lib/emergency"
+import { AuthGate, PageSkeleton } from "@/components/layout/EmptyState"
 
 const WELCOME_MESSAGE =
   "Bonjour. Nous avons un moment pour parler de ce qui vous préoccupe. Par quoi souhaitez-vous commencer aujourd'hui ?"
@@ -180,27 +179,20 @@ export default function ConversationPage() {
   }
 
   if (authState === "checking") {
-    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chargement…</div>
+    return <PageSkeleton lines={3} />
   }
 
   if (authState === "anonymous") {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour discuter avec votre assistant.</p>
-        <Button asChild>
-          <Link href="/login">Se connecter</Link>
-        </Button>
-      </div>
-    )
+    return <AuthGate message="Connectez-vous pour discuter avec l'assistant." />
   }
 
   return (
-    <div className="mx-auto flex h-full w-full max-w-2xl flex-col">
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col pb-16 md:pb-0">
       {setupError && (
         <p className="border-b bg-destructive/10 p-2 text-center text-sm text-destructive">{setupError}</p>
       )}
 
-      <div className="flex items-center justify-end px-4 pt-3 md:px-0">
+      <div className="flex items-center justify-end px-4 pt-3 md:px-6">
         <Button
           variant="ghost"
           size="sm"
@@ -208,26 +200,26 @@ export default function ConversationPage() {
           disabled={startingNew || isStreaming}
           className="text-muted-foreground hover:text-foreground"
         >
-          <SquarePen className="h-3.5 w-3.5" strokeWidth={1.75} />
+          <SquarePen className="h-3.5 w-3.5" strokeWidth={1.5} />
           Nouvelle conversation
         </Button>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-4 md:px-0" ref={scrollRef}>
-        <div className="space-y-5">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6" ref={scrollRef}>
+        <div className="space-y-6">
           {messages.map((message) => (
             <div key={message.id} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}>
               <div
-                className={`max-w-[85%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
+                className={
                   message.role === "user"
-                    ? "bg-primary text-primary-foreground"
-                    : "border bg-card"
-                }`}
+                    ? "max-w-[78%] rounded-2xl bg-primary px-4 py-2.5 text-[15px] leading-relaxed text-primary-foreground"
+                    : "max-w-[min(65ch,100%)] text-[15px] leading-[1.65]"
+                }
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
                 <p
-                  className={`mt-1 text-[11px] tabular-nums ${
-                    message.role === "user" ? "text-primary-foreground/60" : "text-muted-foreground"
+                  className={`mt-1.5 font-mono text-[11px] tabular-nums ${
+                    message.role === "user" ? "text-primary-foreground/55" : "text-muted-foreground"
                   }`}
                 >
                   {message.timestamp.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
@@ -235,48 +227,46 @@ export default function ConversationPage() {
                     (message.decisionLevel === "RED" ||
                       message.decisionLevel === "ORANGE" ||
                       message.generationPath === "TEMPLATE") && (
-                      <span className="ml-2 font-medium">· consigne de sécurité</span>
+                      <span className="ml-2 font-sans font-medium">· consigne de sécurité</span>
                     )}
                 </p>
               </div>
             </div>
           ))}
-          {isStreaming && (
-            <div className="flex justify-start">
-              <div className="max-w-[85%] rounded-xl border bg-card px-4 py-3">
-                <div className="flex gap-1.5">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0.15s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/60 [animation-delay:0.3s]" />
-                </div>
+          {isStreaming && messages[messages.length - 1]?.content === "" && (
+            <div className="flex justify-start" aria-live="polite">
+              <div className="flex gap-1.5 py-2">
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.15s]" />
+                <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50 [animation-delay:0.3s]" />
               </div>
             </div>
           )}
         </div>
-      </ScrollArea>
+      </div>
 
-      <div className="border-t px-4 py-4 md:px-0">
-        <div className="flex items-center gap-2 rounded-xl border bg-card p-1.5 shadow-soft transition-colors focus-within:border-primary/40">
-          <Input
+      <div className="border-t bg-background/80 px-4 py-3 backdrop-blur-sm md:px-6">
+        <div className="flex items-end gap-2 rounded-2xl border bg-card p-2 shadow-soft focus-within:border-primary/35">
+          <Textarea
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Parlez de ce qui compte pour vous…"
+            placeholder="Ce qui compte pour vous…"
             disabled={!conversationId || isStreaming}
-            className="border-0 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+            rows={1}
+            className="min-h-[44px] max-h-40 resize-none border-0 py-2.5 shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
           />
           <Button
             onClick={handleSend}
             size="icon"
+            className="mb-0.5 h-10 w-10 shrink-0"
             disabled={!conversationId || isStreaming || !inputValue.trim()}
             aria-label="Envoyer"
           >
-            <Send className="h-4 w-4" strokeWidth={1.75} />
+            <Send className="h-4 w-4" strokeWidth={1.5} />
           </Button>
         </div>
-        <p className="mt-2 px-1 text-center text-xs text-muted-foreground">
-          {EMERGENCY_BANNER}
-        </p>
+        <p className="mt-2 px-1 text-center text-xs leading-relaxed text-muted-foreground">{EMERGENCY_BANNER}</p>
       </div>
     </div>
   )

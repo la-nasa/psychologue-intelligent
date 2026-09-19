@@ -22,8 +22,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#faf9f7" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1220" },
+    { media: "(prefers-color-scheme: light)", color: "#F8F6F2" },
+    { media: "(prefers-color-scheme: dark)", color: "#12171C" },
   ],
 };
 
@@ -40,7 +40,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             sur la préférence système si rien n'a jamais été choisi. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('mensana-theme');if(t==='dark'||t==='light'){document.documentElement.classList.add(t);}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('mensana-theme');if(t==='dark'||t==='light'){document.documentElement.classList.add(t);}var a=JSON.parse(localStorage.getItem('mensana-a11y')||'{}');if(a.highContrast)document.documentElement.classList.add('high-contrast');if(a.largeText)document.documentElement.classList.add('large-text');if(a.reducedMotion)document.documentElement.classList.add('reduce-motion');}catch(e){}})();`,
           }}
         />
       </head>

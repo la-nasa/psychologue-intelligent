@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { PageHeader } from "@/components/layout/PageShell"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { CheckCircle2, ArrowRight } from "lucide-react"
@@ -54,7 +55,7 @@ export default function CheckinPage() {
   if (result) {
     const needsSupport = result.item9_score > 0
     return (
-      <div className="mx-auto w-full max-w-2xl space-y-6 px-6 py-10">
+      <div className="mx-auto w-full max-w-2xl space-y-6 px-5 py-10 pb-24 md:px-8 md:pb-10">
         <Card className="border-primary/15">
           <CardContent className="space-y-4 p-6 text-center">
             <CheckCircle2 className="mx-auto h-8 w-8 text-success" strokeWidth={1.5} />
@@ -97,14 +98,11 @@ export default function CheckinPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-8 md:py-10">
-      <div className="space-y-1.5">
-        <h1 className="text-2xl font-semibold tracking-tight">Check-in rapide</h1>
-        <p className="text-sm text-muted-foreground">
-          Sur les deux dernières semaines, à quelle fréquence avez-vous été gêné(e) par les problèmes suivants ?
-          Questionnaire PHQ-9 utilisé ici comme check-in de suivi, pas comme diagnostic.
-        </p>
-      </div>
+    <div className="mx-auto w-full max-w-2xl space-y-8 px-5 py-8 pb-24 md:px-8 md:py-10 md:pb-10">
+      <PageHeader
+        title="Check-in rapide"
+        description="Sur les deux dernières semaines, à quelle fréquence avez-vous été gêné(e) par les problèmes suivants ? Questionnaire PHQ-9 utilisé ici comme check-in de suivi, pas comme diagnostic."
+      />
 
       <div className="space-y-5">
         {QUESTIONS.map((question, idx) => (
@@ -117,7 +115,7 @@ export default function CheckinPage() {
                   type="button"
                   onClick={() => setAnswers((prev) => prev.map((a, i) => (i === idx ? opt.value : a)))}
                   className={cn(
-                    "rounded-md border px-3 py-2 text-xs font-medium tracking-tight transition-colors",
+                    "min-h-11 rounded-xl border px-3 py-2 text-xs font-medium tracking-tight transition-colors",
                     answers[idx] === opt.value
                       ? "border-primary bg-primary text-primary-foreground"
                       : "hover:border-primary/40 hover:bg-accent",

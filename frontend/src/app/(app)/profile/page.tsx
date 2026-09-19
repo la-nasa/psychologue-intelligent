@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Link from "next/link"
+import { Pencil, Check, X } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Textarea } from "@/components/ui/textarea"
-import { Pencil, Check, X } from "lucide-react"
+import { AuthGate, PageSkeleton } from "@/components/layout/EmptyState"
 import {
   ApiError,
   clearToken,
@@ -101,22 +101,15 @@ export default function ProfilePage() {
   }
 
   if (authed === false) {
-    return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
-        <p className="text-sm text-muted-foreground">Connectez-vous pour voir votre profil.</p>
-        <Button asChild>
-          <Link href="/login">Se connecter</Link>
-        </Button>
-      </div>
-    )
+    return <AuthGate message="Connectez-vous pour voir votre profil." />
   }
 
   if (loading || !profile || !prefs) {
-    return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chargement…</div>
+    return <PageSkeleton lines={4} />
   }
 
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-6 px-6 py-8 md:py-10">
+    <div className="mx-auto w-full max-w-3xl space-y-8 px-5 py-8 pb-24 md:px-8 md:py-10 md:pb-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold tracking-tight">Profil</h1>

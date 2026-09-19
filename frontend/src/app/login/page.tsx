@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ApiError, getMe, grantConsent, landingPathForRoles, login, register } from "@/lib/api"
+import { EMERGENCY_NUMBERS } from "@/lib/emergency"
 
 type Mode = "login" | "register"
 
@@ -29,11 +30,6 @@ export default function LoginPage() {
       if (mode === "register") {
         await register(organizationSlug, email, password)
         try {
-          // L'API de démarrage de conversation exige un consentement CARE actif
-          // (server/app/application/conversation.py) — sans cette étape, un
-          // patient fraîchement inscrit se heurtait à un 403 incompréhensible
-          // dès son premier message. Inscription -> connexion -> octroi CARE
-          // -> conversation, en une seule action explicite.
           await login(organizationSlug, email, password)
           await grantConsent("CARE")
           router.push("/conversation")
@@ -58,36 +54,64 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4 py-12">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex flex-col items-center gap-2 text-center">
-          <span className="h-2 w-2 rounded-full bg-primary" aria-hidden />
-          <h1 className="text-xl font-semibold tracking-tight">Mensana</h1>
-          <p className="text-sm text-muted-foreground">Un espace pour parler, en toute confiance.</p>
+    <main className="grid min-h-[100dvh] overflow-x-hidden lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="relative hidden flex-col justify-between bg-[#345A63] px-12 py-12 text-[#F7F4EE] lg:flex">
+        <div className="flex items-baseline gap-2">
+          <span className="h-1.5 w-1.5 rounded-full bg-[#F7F4EE]" aria-hidden />
+          <span className="text-sm font-semibold tracking-tight">Mensana</span>
         </div>
+        <div className="max-w-md space-y-5">
+          <h1 className="max-w-xl text-[clamp(2rem,3.4vw,3.25rem)] font-semibold leading-[1.12] tracking-tight">
+            Un espace pour parler, à votre rythme.
+          </h1>
+          <p className="max-w-[42ch] text-sm leading-relaxed text-[#F7F4EE]/75">
+            Soutien conversationnel confidentiel. Ce n&apos;est pas un psychologue, ni un service d&apos;urgence.
+          </p>
+        </div>
+        <p className="text-xs text-[#F7F4EE]/60">
+          En danger immédiat : {EMERGENCY_NUMBERS}
+        </p>
+      </section>
 
-        <div className="rounded-xl border bg-card p-6 shadow-soft-lg">
-          <div className="mb-5 space-y-1">
-            <h2 className="text-lg font-medium tracking-tight">
+      <section className="flex min-h-[100dvh] flex-col justify-center px-5 py-12 sm:px-10">
+        <div className="mx-auto w-full max-w-sm">
+          <div className="mb-8 space-y-2 lg:hidden">
+            <div className="flex items-baseline gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-primary" aria-hidden />
+              <span className="text-sm font-semibold tracking-tight">Mensana</span>
+            </div>
+            <p className="text-sm text-muted-foreground">Un espace pour parler, en toute confiance.</p>
+          </div>
+
+          <div className="space-y-1.5">
+            <h2 className="text-2xl font-semibold tracking-tight">
               {mode === "login" ? "Content de vous revoir" : "Créer votre espace"}
             </h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm leading-relaxed text-muted-foreground">
               {mode === "login"
                 ? "Connectez-vous pour retrouver vos conversations."
                 : "Un clinicien pourra vous suivre une fois votre compte créé."}
             </p>
           </div>
 
-          <form className="space-y-4" onSubmit={handleSubmit}>
-            <div className="space-y-1.5">
+          <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+            <div className="grid gap-2">
               <Label htmlFor="org">Organisation</Label>
-              <Input id="org" placeholder="demo" value={organizationSlug} onChange={(e) => setOrganizationSlug(e.target.value)} required />
+              <Input
+                id="org"
+                placeholder="demo"
+                value={organizationSlug}
+                onChange={(e) => setOrganizationSlug(e.target.value)}
+                required
+                autoComplete="organization"
+              />
+              <p className="text-xs text-muted-foreground">Identifiant fourni par votre établissement.</p>
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-2">
               <Label htmlFor="email">E-mail</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="email" />
             </div>
-            <div className="space-y-1.5">
+            <div className="grid gap-2">
               <Label htmlFor="password">Mot de passe</Label>
               <Input
                 id="password"
@@ -96,16 +120,17 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 minLength={mode === "register" ? 12 : undefined}
                 required
+                autoComplete={mode === "login" ? "current-password" : "new-password"}
               />
             </div>
             {mode === "login" && (
-              <div className="space-y-1.5">
-                <Label htmlFor="totp">Code d&apos;authentification (si activé)</Label>
-                <Input id="totp" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="Optionnel" />
+              <div className="grid gap-2">
+                <Label htmlFor="totp">Code d&apos;authentification</Label>
+                <Input id="totp" value={totpCode} onChange={(e) => setTotpCode(e.target.value)} placeholder="Si la 2FA est activée" />
               </div>
             )}
             {mode === "register" && (
-              <label className="flex items-start gap-2.5 rounded-md border bg-muted/40 p-3 text-sm">
+              <label className="flex items-start gap-2.5 rounded-xl border bg-muted/40 p-3 text-sm">
                 <input
                   type="checkbox"
                   className="mt-0.5 h-4 w-4 shrink-0 accent-primary"
@@ -121,24 +146,24 @@ export default function LoginPage() {
             )}
 
             {registered && mode === "login" && (
-              <p className="rounded-md border border-success/20 bg-success/10 px-3 py-2 text-sm text-success">
+              <p className="rounded-xl border border-success/20 bg-success/10 px-3 py-2 text-sm text-success">
                 Compte créé — vous pouvez vous connecter.
               </p>
             )}
             {error && (
-              <p className="rounded-md border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert">
                 {error}
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={submitting}>
+            <Button type="submit" className="h-11 w-full" disabled={submitting}>
               {submitting ? "Un instant…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
             </Button>
           </form>
 
           <button
             type="button"
-            className="mt-5 w-full text-center text-sm text-muted-foreground hover:text-foreground"
+            className="mt-6 w-full text-center text-sm text-muted-foreground hover:text-foreground"
             onClick={() => {
               setError(null)
               setMode(mode === "login" ? "register" : "login")
@@ -151,7 +176,7 @@ export default function LoginPage() {
             )}
           </button>
         </div>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }
