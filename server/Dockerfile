@@ -48,4 +48,4 @@ HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
 # l'organisation/compte de démonstration best-effort et idempotent (;), piloté
 # par PI_BOOTSTRAP_ADMIN_EMAIL/PI_BOOTSTRAP_ADMIN_PASSWORD (no-op silencieux si
 # absents, ex. en local hors compose).
-CMD ["sh", "-c", "python -m alembic upgrade head && (python -m scripts.bootstrap --org-slug demo --org-name \"Demonstration\" --email \"$PI_BOOTSTRAP_ADMIN_EMAIL\" --password \"$PI_BOOTSTRAP_ADMIN_PASSWORD\" --role ADMIN; exec uvicorn app.main:app --host 0.0.0.0 --port 8000)"]
+CMD ["sh", "-c", "python -m alembic upgrade head && (python -m scripts.bootstrap --org-slug demo --org-name \"Demonstration\" --email \"$PI_BOOTSTRAP_ADMIN_EMAIL\" --password \"$PI_BOOTSTRAP_ADMIN_PASSWORD\" --role ADMIN; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000})"]
