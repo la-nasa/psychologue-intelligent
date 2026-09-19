@@ -6,6 +6,8 @@ Auteur : agent code
 Objectif : Établir l'état réel du dépôt, le confronter à l'architecture cible du prompt V2, mesurer l'écart, proposer une roadmap, des critères d'acceptation, un registre de risques et une stratégie de migration — **avant toute implémentation** (règle 151 du prompt maître).
 
 > Ce rapport ne remplace pas [`docs/reports/phase-0-audit.md`](phase-0-audit.md) (l'audit d'origine, dépôt vide, 2026-08-24). Il le complète : le dépôt n'est plus vide, et la cible a changé d'échelle.
+>
+> **Addendum 2026-09-18 :** l'état réel du dépôt (V2 déjà portée, LLM local encore à gabarits à cette date, puis hybride ADR-015) est dans [`phase-0-addendum-2026-09-18.md`](phase-0-addendum-2026-09-18.md). Ce rapport d'août n'est plus le constat courant.
 
 ---
 

@@ -40,6 +40,7 @@ def _migrated_db() -> Iterator[None]:
 # test sur ce nettoyage. Aucune séquence à réinitialiser (toutes les PK sont des UUID).
 _CLEAN_ORDER = (
     "goal_progress", "goals",
+    "analytics_events",
     "memories", "longitudinal_snapshots",
     "clinician_response_reviews",
     "conversation_state", "messages", "conversations",

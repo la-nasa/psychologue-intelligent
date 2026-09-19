@@ -23,6 +23,9 @@ x-app-env: &app-env
   PI_JWT_SIGNING_KEY: dev-only-not-a-real-secret-change-me
   PI_SMTP_HOST: mailpit
   PI_SMTP_PORT: "1025"
+  # LLM local (ADR-015) : laisser vide en CPU. Avec `--profile gpu` :
+  # PI_LLM_BASE_URL: http://llm:8000/v1
+  # PI_FAST_MODEL: Qwen/Qwen2.5-3B-Instruct
 
 services:
   postgres:
@@ -117,6 +120,36 @@ services:
     volumes:
       - ./server:/app
     command: ["python", "-m", "app.workers.scheduler"]
+
+  # Inférence GPU optionnelle (ADR-015). Pas de Triton.
+  #   docker compose --profile gpu up
+  # Puis PI_LLM_BASE_URL=http://localhost:8001/v1 (hôte) ou http://llm:8000/v1 (réseau compose).
+  llm:
+    image: vllm/vllm-openai:v0.8.5
+    profiles: ["gpu"]
+    command:
+      - --model
+      - Qwen/Qwen2.5-3B-Instruct
+      - --max-model-len
+      - "4096"
+      - --dtype
+      - auto
+    ports:
+      - "8001:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/models')\""]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 180s
 
 volumes:
   pgdata:

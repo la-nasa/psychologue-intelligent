@@ -44,6 +44,9 @@ def create_app() -> FastAPI:
         version="0.2.0",
         description="Monolithe modulaire. Voir docs/architecture/overview-v2.md.",
         lifespan=lifespan,
+        docs_url="/docs" if settings.expose_api_docs else None,
+        redoc_url="/redoc" if settings.expose_api_docs else None,
+        openapi_url="/openapi.json" if settings.expose_api_docs else None,
     )
 
     app.add_middleware(
@@ -81,8 +84,8 @@ def create_app() -> FastAPI:
     # Chargées une fois au démarrage : une politique invalide ou non approuvée
     # (hors development) fait échouer le boot, jamais une requête (ADR-002/004).
     from app.ai.providers.external import ExternalLLMProvider
+    from app.ai.providers.generative_local import HybridLocalProvider
     from app.ai.providers.lexicon_risk import LexiconRiskModel
-    from app.ai.providers.local import LocalSupportiveResponder
     from app.ai.routing.model_router import Providers
     from app.application.notifications import CompositeNotificationProvider
     from app.application.safety import load_safety_config
@@ -90,7 +93,7 @@ def create_app() -> FastAPI:
     app.state.safety = load_safety_config(settings)
     app.state.risk_model = LexiconRiskModel()
     app.state.notification_provider = CompositeNotificationProvider()
-    app.state.providers = Providers(local=LocalSupportiveResponder(), external=ExternalLLMProvider())
+    app.state.providers = Providers(local=HybridLocalProvider(), external=ExternalLLMProvider())
 
     install_exception_handlers(app)
     app.include_router(health.router)

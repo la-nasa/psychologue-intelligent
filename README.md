@@ -33,18 +33,38 @@ python ml/train_emotion_classifier.py
 
 Télécharge GoEmotions (Apache-2.0) depuis GitHub, entraîne et évalue le modèle, régénère `ml/artifacts/emotion-classifier-v1.json` et `ml/MODEL_CARD.md`. Voir le modèle card pour les métriques réelles, la portée et les limites — ce n'est pas un modèle clinique.
 
-## Activer le répondeur génératif (optionnel, ADR-005)
+## Activer le répondeur génératif V1 (optionnel, ADR-005)
 
-Désactivé par défaut (`PI_RESPONDER_MODE=templated`) : la fondation reste testable et exécutable sans aucune dépendance supplémentaire (ADR-003). Pour l'activer localement :
+Désactivé par défaut (`PI_RESPONDER_MODE=templated`) sur la stack V1 (`backend/`). Pour l'activer localement :
 
 ```bash
 pip install -e ".[llm]"
 export PI_RESPONDER_MODE=local-llm
 export PI_LLM_MODEL_PATH=work/models/qwen2.5-1.5b-instruct-q4_k_m.gguf
-python scripts/bootstrap_llm_model.py   # télécharge ~2,1 Go une seule fois, idempotent
+python scripts/bootstrap_llm_model.py
 ```
 
-N'importe où ailleurs dans le code, `llama_cpp` n'est jamais importé qu'à l'intérieur de `backend/app/local_llm.py`, et seulement si ce mode est actif : la suite de tests complète (`python -m unittest discover -s tests`) passe sans cette dépendance installée. Voir l'ADR pour les limites assumées (latence CPU, appels sérialisés, aucune revue humaine du contenu généré encore menée).
+Latence CPU Railway mesurée : 30 s à plus d'une minute — ce n'est pas un objectif produit.
+
+## LLM local V2 (ADR-015, recommandé)
+
+Le FAST path de `server/` utilise un fournisseur hybride : serveur OpenAI-compatible (vLLM / llama.cpp GPU) → GGUF in-process → gabarits. Les tests passent sans poids.
+
+```bash
+cd server
+pip install -e ".[dev,llm]"
+python -m scripts.bootstrap_llm_model   # GGUF CPU ~0,5B, idempotent
+export PI_LLM_MODEL_PATH=work/models/qwen2.5-0.5b-instruct-q4_k_m.gguf
+
+# GPU (Linux/NVIDIA) :
+docker compose --profile gpu up
+export PI_LLM_BASE_URL=http://localhost:8001/v1
+export PI_FAST_MODEL=Qwen/Qwen2.5-3B-Instruct
+```
+
+Mesure hors CI (n'invente pas de chiffres) : `python scripts/benchmark_llm_ttft.py` depuis la racine, `PYTHONPATH` incluant `server/`. Le premier token < 1–2 s est un objectif d'ingénierie, atteignable surtout avec GPU — jamais une garantie clinique ni une promesse CPU.
+
+Audit actualisé : [`docs/reports/phase-0-addendum-2026-09-18.md`](docs/reports/phase-0-addendum-2026-09-18.md).
 
 ## Principes non négociables
 

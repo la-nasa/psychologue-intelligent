@@ -34,6 +34,7 @@ from app.application.safety import SafetyConfig, evaluate_incoming_message
 from app.core.config import get_settings
 from app.core.crypto import decrypt, encrypt
 from app.core.errors import DomainError, NotFoundError, PermissionDeniedError
+from app.core.observability import get_tracer
 from app.domain.safety.crisis import RiskModel
 from app.domain.safety.responder import compose_reply
 from app.infrastructure.models import Conversation, ConversationState, Message
@@ -288,6 +289,8 @@ async def stream_turn(
 
     assistant_seq = seq + 1
     style_snapshot: dict = {}
+    ttft_ms: float | None = None
+    total_ms: float | None = None
     if decision.level != "GREEN":
         reply_text, responder_version = compose_reply(decision, safety_config.templates, _RaisingLLM(), text)
         gen_path, provider_name = "TEMPLATE", None
@@ -309,19 +312,30 @@ async def stream_turn(
         cancelled = False
         infra_failure = False
         chosen = route.provider
+        gen_started = asyncio.get_running_loop().time()
+        tracer = get_tracer("pi.conversation")
+        span = tracer.start_span("llm.stream")
         try:
             async for fragment in chosen.stream(messages, max_tokens=max_tokens):
                 if cancel is not None and cancel.is_set():
                     cancelled = True
                     break
+                if ttft_ms is None:
+                    ttft_ms = round((asyncio.get_running_loop().time() - gen_started) * 1000, 1)
+                    span.set_attribute("pi.ttft_ms", ttft_ms)
                 fragments.append(fragment)
                 yield {"type": "assistant_chunk", "text": fragment}
         except ProviderUnavailable:
             LOGGER.info("provider %s unavailable mid-stream; falling back to local", chosen.name)
             chosen = providers.local
             fragments = []
+            ttft_ms = None
+            gen_started = asyncio.get_running_loop().time()
             try:
                 async for fragment in chosen.stream(messages, max_tokens=max_tokens):
+                    if ttft_ms is None:
+                        ttft_ms = round((asyncio.get_running_loop().time() - gen_started) * 1000, 1)
+                        span.set_attribute("pi.ttft_ms", ttft_ms)
                     fragments.append(fragment)
                     yield {"type": "assistant_chunk", "text": fragment}
                 route = model_router.Route(provider=chosen, effective_path="FAST", reason="mid_stream_fallback")
@@ -334,6 +348,12 @@ async def stream_turn(
             # jamais une réponse partielle non vérifiée livrée telle quelle.
             LOGGER.exception("generation failed; using safe fallback")
             infra_failure = True
+        finally:
+            total_ms = round((asyncio.get_running_loop().time() - gen_started) * 1000, 1)
+            span.set_attribute("pi.total_ms", total_ms)
+            span.set_attribute("pi.provider", chosen.name)
+            span.set_attribute("pi.path", route.effective_path)
+            span.end()
 
         if infra_failure:
             reply_text = safety_config.templates.safe_fallback
@@ -409,7 +429,13 @@ async def stream_turn(
         await analytics.record_event(
             session, organization_id=organization_id, user_id=patient_id, category="AI_QUALITY",
             event_type="assistant_response_generated",
-            properties={"generation_path": gen_path, "decision_level": decision.level},
+            properties={
+                "generation_path": gen_path,
+                "decision_level": decision.level,
+                "provider": provider_name,
+                "ttft_ms": ttft_ms,
+                "total_ms": total_ms,
+            },
         )
     except Exception:
         LOGGER.exception("analytics event write failed")
@@ -422,6 +448,8 @@ async def stream_turn(
         "generation_path": gen_path,
         "provider": provider_name,
         "decision_level": decision.level,
+        "ttft_ms": ttft_ms,
+        "total_ms": total_ms,
     }
     yield {"type": "done"}
 

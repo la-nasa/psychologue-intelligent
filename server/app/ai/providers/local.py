@@ -3,9 +3,9 @@
 Concret derrière `StreamingLLMProvider`. Compose une réponse
 ACKNOWLEDGE → (REFLECT) → une question, à partir de gabarits + du contexte.
 Ce n'est PAS une IA conversationnelle et ne doit jamais être présenté comme
-telle : c'est le comportement par défaut du FAST path et le repli du DEEP path,
-en attendant un adaptateur `local` réellement génératif (llama.cpp, ADR-005/007)
-ou l'adaptateur `external`. Toujours GREEN uniquement (voir `compose_reply`).
+telle. Repli du ``HybridLocalProvider`` (ADR-015) lorsqu'aucun serveur
+d'inférence ni GGUF n'est disponible. Toujours GREEN uniquement
+(voir ``compose_reply``).
 """
 from __future__ import annotations
 

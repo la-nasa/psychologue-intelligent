@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -23,8 +23,27 @@ interface VoiceTurn {
 }
 
 type SetupState = "checking" | "anonymous" | "unsupported" | "consent_needed" | "ready"
+type VoiceUiState =
+  | "IDLE"
+  | "LISTENING"
+  | "PROCESSING"
+  | "THINKING"
+  | "SPEAKING"
+  | "INTERRUPTED"
+  | "RECONNECTING"
+  | "ERROR"
 
-// Le SDK TS ne connaît pas le Web Speech API — types minimaux pour ce qu'on utilise.
+const STATE_LABEL: Record<VoiceUiState, string> = {
+  IDLE: "Appuyez pour parler",
+  LISTENING: "Écoute…",
+  PROCESSING: "Transcription…",
+  THINKING: "Réflexion…",
+  SPEAKING: "L’assistant parle — appuyez pour interrompre",
+  INTERRUPTED: "Interrompu",
+  RECONNECTING: "Reconnexion…",
+  ERROR: "Erreur — réessayez",
+}
+
 interface SpeechRecognitionResultLike {
   isFinal: boolean
   0: { transcript: string }
@@ -33,15 +52,19 @@ interface SpeechRecognitionEventLike {
   results: ArrayLike<SpeechRecognitionResultLike>
   resultIndex: number
 }
+interface SpeechRecognitionErrorEventLike {
+  error?: string
+}
 interface SpeechRecognitionLike extends EventTarget {
   lang: string
   continuous: boolean
   interimResults: boolean
   start(): void
   stop(): void
+  abort(): void
   onresult: ((event: SpeechRecognitionEventLike) => void) | null
   onend: (() => void) | null
-  onerror: (() => void) | null
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null
 }
 
 function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
@@ -50,91 +73,144 @@ function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
   return (w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null) as (new () => SpeechRecognitionLike) | null
 }
 
+function stopBrowserSpeech() {
+  if (typeof window === "undefined" || !window.speechSynthesis) return
+  window.speechSynthesis.cancel()
+}
+
 export default function VoicePage() {
-  const [state, setState] = useState<SetupState>("checking")
+  const [setup, setSetup] = useState<SetupState>("checking")
+  const [ui, setUi] = useState<VoiceUiState>("IDLE")
   const [conversationId, setConversationId] = useState<string | null>(null)
   const [turns, setTurns] = useState<VoiceTurn[]>([])
-  const [listening, setListening] = useState(false)
   const [interim, setInterim] = useState("")
   const [muted, setMuted] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const speakingRef = useRef(false)
+  const turnAbortRef = useRef(false)
+
+  const ensureConversation = useCallback(async (): Promise<string | null> => {
+    if (conversationId) return conversationId
+    try {
+      setUi("RECONNECTING")
+      const convo = await startConversation()
+      setConversationId(convo.id)
+      setUi("IDLE")
+      return convo.id
+    } catch {
+      setError("Impossible de démarrer ou de reprendre la conversation. Vérifiez le réseau puis réessayez.")
+      setUi("ERROR")
+      return null
+    }
+  }, [conversationId])
 
   useEffect(() => {
     if (!getToken()) {
-      setState("anonymous")
+      setSetup("anonymous")
       return
     }
     if (!getSpeechRecognition()) {
-      setState("unsupported")
+      setSetup("unsupported")
       return
     }
     listConsents()
       .then((consents) => {
         const active = consents.find((c) => c.purpose === "VOICE")?.active ?? false
-        setState(active ? "ready" : "consent_needed")
+        setSetup(active ? "ready" : "consent_needed")
       })
-      .catch(() => setState("consent_needed"))
+      .catch(() => setSetup("consent_needed"))
   }, [])
 
   useEffect(() => {
-    if (state !== "ready") return
-    startConversation()
-      .then((convo) => setConversationId(convo.id))
-      .catch(() => setError("Impossible de démarrer la conversation."))
-  }, [state])
+    if (setup !== "ready") return
+    void ensureConversation()
+  }, [setup, ensureConversation])
 
   const enableVoice = async () => {
     try {
       await grantConsent("VOICE")
-      setState("ready")
+      setSetup("ready")
     } catch {
       setError("Impossible d'activer les sessions vocales.")
     }
   }
 
   const speak = (text: string) => {
-    if (muted || typeof window === "undefined" || !window.speechSynthesis) return
-    window.speechSynthesis.cancel()
+    if (muted || typeof window === "undefined" || !window.speechSynthesis) {
+      setUi("IDLE")
+      return
+    }
+    stopBrowserSpeech()
     const utterance = new SpeechSynthesisUtterance(text)
     utterance.lang = "fr-FR"
+    speakingRef.current = true
+    setUi("SPEAKING")
+    utterance.onend = () => {
+      speakingRef.current = false
+      setUi("IDLE")
+    }
+    utterance.onerror = () => {
+      speakingRef.current = false
+      setUi("IDLE")
+    }
     window.speechSynthesis.speak(utterance)
   }
 
-  const send = async (text: string) => {
-    if (!conversationId || !text.trim()) return
+  const bargeIn = () => {
+    turnAbortRef.current = true
+    stopBrowserSpeech()
+    speakingRef.current = false
+    recognitionRef.current?.abort()
+    setUi("INTERRUPTED")
+    setInterim("")
+  }
+
+  const send = async (text: string, cid: string, retry = true) => {
     const userTurn: VoiceTurn = { id: `u-${Date.now()}`, role: "user", content: text }
     const assistantId = `a-${Date.now()}`
+    turnAbortRef.current = false
     setTurns((prev) => [...prev, userTurn, { id: assistantId, role: "assistant", content: "" }])
+    setUi("THINKING")
 
     try {
-      await streamMessage(conversationId, text, (event) => {
+      await streamMessage(cid, text, (event) => {
+        if (turnAbortRef.current) return
         if (event.type === "assistant_chunk") {
+          setUi("THINKING")
           setTurns((prev) => prev.map((t) => (t.id === assistantId ? { ...t, content: t.content + event.text } : t)))
         } else if (event.type === "assistant_correction") {
           setTurns((prev) => prev.map((t) => (t.id === assistantId ? { ...t, content: event.text } : t)))
         } else if (event.type === "assistant_message") {
           setTurns((prev) => prev.map((t) => (t.id === assistantId ? { ...t, content: event.content } : t)))
-          speak(event.content)
+          if (!turnAbortRef.current) speak(event.content)
         }
       })
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) {
         clearToken()
-        setState("anonymous")
-      } else {
-        setError("La réponse n'a pas pu être obtenue.")
+        setSetup("anonymous")
+        return
       }
+      if (retry) {
+        setUi("RECONNECTING")
+        const fresh = await ensureConversation()
+        if (fresh) {
+          await send(text, fresh, false)
+          return
+        }
+      }
+      setError("La réponse n'a pas pu être obtenue. Vous pouvez réessayer ou continuer par écrit.")
+      setUi("ERROR")
     }
   }
 
-  const toggleListening = () => {
+  const startListening = () => {
     const Recognition = getSpeechRecognition()
     if (!Recognition) return
 
-    if (listening) {
-      recognitionRef.current?.stop()
-      return
+    if (speakingRef.current || ui === "SPEAKING") {
+      bargeIn()
     }
 
     const recognition = new Recognition()
@@ -152,31 +228,78 @@ export default function VoicePage() {
       setInterim(interimText)
       if (finalText.trim()) {
         setInterim("")
-        send(finalText.trim())
+        setUi("PROCESSING")
+        const cid = conversationId
+        if (cid) void send(finalText.trim(), cid)
+        else {
+          void ensureConversation().then((id) => {
+            if (id) void send(finalText.trim(), id)
+          })
+        }
       }
     }
     recognition.onend = () => {
-      setListening(false)
+      recognitionRef.current = null
       setInterim("")
+      setUi((current) => (current === "LISTENING" ? "IDLE" : current))
     }
-    recognition.onerror = () => {
-      setListening(false)
+    recognition.onerror = (event) => {
+      recognitionRef.current = null
       setInterim("")
-      setError("La reconnaissance vocale a été interrompue.")
+      if (event.error === "not-allowed") {
+        setError("Le microphone est refusé. Autorisez-le dans le navigateur, ou continuez par écrit.")
+        setUi("ERROR")
+        return
+      }
+      if (event.error === "aborted") {
+        setUi("INTERRUPTED")
+        return
+      }
+      setError("La reconnaissance vocale a été interrompue. Réessayez dans un endroit plus calme.")
+      setUi("ERROR")
     }
     recognitionRef.current = recognition
     setError(null)
-    setListening(true)
-    recognition.start()
+    setUi("LISTENING")
+    try {
+      recognition.start()
+    } catch {
+      setError("Impossible de démarrer le microphone.")
+      setUi("ERROR")
+    }
   }
 
-  useEffect(() => () => recognitionRef.current?.stop(), [])
+  const toggleListening = () => {
+    if (ui === "LISTENING") {
+      recognitionRef.current?.stop()
+      setUi("IDLE")
+      return
+    }
+    if (ui === "SPEAKING" || speakingRef.current) {
+      bargeIn()
+      startListening()
+      return
+    }
+    void (async () => {
+      const cid = await ensureConversation()
+      if (!cid) return
+      startListening()
+    })()
+  }
 
-  if (state === "checking") {
+  useEffect(
+    () => () => {
+      recognitionRef.current?.abort()
+      stopBrowserSpeech()
+    },
+    [],
+  )
+
+  if (setup === "checking") {
     return <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Chargement…</div>
   }
 
-  if (state === "anonymous") {
+  if (setup === "anonymous") {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <p className="text-sm text-muted-foreground">Connectez-vous pour utiliser les sessions vocales.</p>
@@ -187,7 +310,7 @@ export default function VoicePage() {
     )
   }
 
-  if (state === "unsupported") {
+  if (setup === "unsupported") {
     return (
       <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border bg-accent/40">
@@ -196,7 +319,7 @@ export default function VoicePage() {
         <h1 className="text-xl font-semibold tracking-tight">Reconnaissance vocale non disponible</h1>
         <p className="text-sm text-muted-foreground">
           Votre navigateur ne prend pas en charge la reconnaissance vocale nécessaire aux sessions parlées. Essayez
-          avec une version récente de Chrome ou Edge.
+          avec une version récente de Chrome ou Edge, ou continuez par écrit.
         </p>
         <Button asChild className="mt-2">
           <Link href="/conversation">
@@ -208,7 +331,7 @@ export default function VoicePage() {
     )
   }
 
-  if (state === "consent_needed") {
+  if (setup === "consent_needed") {
     return (
       <div className="mx-auto flex h-full w-full max-w-lg flex-col items-center justify-center gap-4 px-6 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full border bg-accent/40">
@@ -228,6 +351,9 @@ export default function VoicePage() {
     )
   }
 
+  const micBusy = ui === "LISTENING"
+  const canTalk = Boolean(conversationId) || ui === "RECONNECTING"
+
   return (
     <div className="mx-auto flex h-full w-full max-w-2xl flex-col px-6 py-8 md:py-10">
       <div className="flex items-center justify-between">
@@ -235,16 +361,27 @@ export default function VoicePage() {
           <h1 className="text-2xl font-semibold tracking-tight">Session vocale</h1>
           <p className="text-sm text-muted-foreground">Parlez, l&apos;assistant vous répond à voix haute.</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} aria-label="Couper le son">
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            setMuted((m) => {
+              if (!m) stopBrowserSpeech()
+              return !m
+            })
+          }}
+          aria-label="Couper le son"
+        >
           {muted ? <VolumeX className="h-5 w-5" strokeWidth={1.75} /> : <Volume2 className="h-5 w-5" strokeWidth={1.75} />}
         </Button>
       </div>
 
-      <div className="mt-6 flex-1 space-y-3 overflow-y-auto">
+      <div className="mt-6 flex-1 space-y-3 overflow-y-auto" aria-live="polite">
         {turns.length === 0 && (
           <Card>
             <CardContent className="p-5 text-sm text-muted-foreground">
-              Appuyez sur le micro et parlez librement. Votre message apparaîtra ici une fois transcrit.
+              Appuyez sur le micro et parlez librement. Votre message apparaîtra ici une fois transcrit. Vous pouvez
+              interrompre la voix à tout moment.
             </CardContent>
           </Card>
         )}
@@ -268,20 +405,24 @@ export default function VoicePage() {
         )}
       </div>
 
-      {error && <p className="mt-3 text-center text-sm text-destructive">{error}</p>}
+      {error && (
+        <p className="mt-3 text-center text-sm text-destructive" role="alert">
+          {error}
+        </p>
+      )}
 
       <div className="mt-6 flex flex-col items-center gap-3">
         <Button
           size="lg"
           onClick={toggleListening}
-          disabled={!conversationId}
-          variant={listening ? "destructive" : "default"}
+          disabled={!canTalk && ui !== "ERROR"}
+          variant={micBusy ? "destructive" : "default"}
           className="h-16 w-16 rounded-full p-0"
-          aria-label={listening ? "Arrêter l'écoute" : "Parler"}
+          aria-label={micBusy ? "Arrêter l'écoute" : ui === "SPEAKING" ? "Interrompre et parler" : "Parler"}
         >
-          {listening ? <MicOff className="h-6 w-6" strokeWidth={1.75} /> : <Mic className="h-6 w-6" strokeWidth={1.75} />}
+          {micBusy ? <MicOff className="h-6 w-6" strokeWidth={1.75} /> : <Mic className="h-6 w-6" strokeWidth={1.75} />}
         </Button>
-        <Badge variant={listening ? "warning" : "outline"}>{listening ? "Écoute en cours…" : "Appuyez pour parler"}</Badge>
+        <Badge variant={micBusy || ui === "SPEAKING" ? "warning" : "outline"}>{STATE_LABEL[ui]}</Badge>
         <p className="text-center text-xs text-muted-foreground">
           Cet espace est confidentiel. En cas d&apos;urgence, contactez les secours (15, 112) ou le 3114.
         </p>

@@ -64,7 +64,26 @@ class Settings(BaseSettings):
     llm_external_base_url: str = ""
     llm_max_reply_tokens: int = 160
 
+    # FAST local hybride (ADR-015). Vide => pas de serveur d'inférence HTTP.
+    llm_base_url: str = ""
+    llm_api_key: str = "local"
+    fast_model: str = "Qwen/Qwen2.5-3B-Instruct"
+    standard_model: str = "Qwen/Qwen2.5-3B-Instruct"
+    deep_reasoning_model: str = "claude-haiku-4-5"
+    llm_model_path: Path = Path("work/models/qwen2.5-0.5b-instruct-q4_k_m.gguf")
+    llm_n_gpu_layers: int = -1
+    llm_context_tokens: int = 4096
+    llm_threads: int | None = None
+    # Les tests n'ouvrent jamais un GGUF réel sauf activation explicite.
+    llm_enable_in_tests: bool = False
+
     cors_allow_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+
+    # Phase 18 — hardening. Séparé de `env` : ce déploiement tourne délibérément en
+    # `PI_ENV=development` (la politique de crise n'a pas d'`approved_by` clinique
+    # réel, cf. crisis.py) tout en servant de vrais utilisateurs sur une URL
+    # publique — `env` seul ne suffit donc pas à décider si /docs doit être exposé.
+    expose_api_docs: bool = True
 
     # Phase 17 — MLOps (ADR-011). Vide => tracking désactivé, l'enregistrement de
     # version reste local (table `model_versions`) sans miroir MLflow.
